@@ -1,63 +1,70 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: slack
 name: Slack
 category: communication
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: starter
 docs_url: https://api.slack.com/authentication/verifying-requests-from-slack
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    # Slack sends: "v0=<hex_digest>" — strip the prefix
-    sig_value: "header('X-Slack-Signature').trimPrefix('v0=')"
-    # Slack construction: "v0:" + timestamp + ":" + raw_body
-    signing_input: "'v0:' + header('X-Slack-Request-Timestamp') + ':' + raw_body"
-
+    sig_value: header('X-Slack-Signature').trimPrefix('v0=')
+    signing_input: '''v0:'' + header(''X-Slack-Request-Timestamp'') + '':'' + raw_body'
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: "int(header('X-Slack-Request-Timestamp'))"
+    timestamp_value: int(header('X-Slack-Request-Timestamp'))
     tolerance_seconds: 300
-
 registration:
   customer_fields:
-    - name: webhook_secret
-      label: Signing Secret
-      type: secret
-      required: true
-      help_text: "Slack App → Basic Information → App Credentials → Signing Secret"
-
+  - name: webhook_secret
+    label: Signing Secret
+    type: secret
+    required: true
+    help_text: Slack App → Basic Information → App Credentials → Signing Secret
 events:
-  - name: message
-    description: Message posted in a channel the app is in
-  - name: app_mention
-    description: App mentioned with @
-  - name: reaction_added
-    description: Reaction added to a message
-  - name: member_joined_channel
-    description: User joined a channel
-  - name: url_verification
-    description: Slack URL verification challenge (handled automatically by AparHub)
-
+- name: message
+  description: Message posted in a channel the app is in
+- name: app_mention
+  description: App mentioned with @
+- name: reaction_added
+  description: Reaction added to a message
+- name: member_joined_channel
+  description: User joined a channel
+- name: url_verification
+  description: Slack URL verification challenge (handled automatically by AparHub)
 test_harness:
-  test_secret: "test_slack_signing_secret"
+  test_secret: test_slack_signing_secret
   sample_headers:
-    X-Slack-Signature: "v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a"
-    X-Slack-Request-Timestamp: "1714000000"
-    Content-Type: "application/x-www-form-urlencoded"
-  sample_payload: "payload=%7B%22type%22%3A%22block_actions%22%2C%22user%22%3A%7B%22id%22%3A%22U123%22%7D%7D"
+    X-Slack-Signature: v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a
+    X-Slack-Request-Timestamp: '1714000000'
+    Content-Type: application/x-www-form-urlencoded
+  sample_payload: payload=%7B%22type%22%3A%22block_actions%22%2C%22user%22%3A%7B%22id%22%3A%22U123%22%7D%7D
   expected_result: verified
   additional_cases:
-    - description: Stale timestamp — replay attack
-      mutate:
-        headers:
-          X-Slack-Request-Timestamp: "1000000000"
-      expected_result: rejected_replay
-    - description: Signature computed with different construction
-      mutate:
-        headers:
-          X-Slack-Signature: "v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a"
-      expected_result: rejected_sig
+  - description: Stale timestamp — replay attack
+    mutate:
+      headers:
+        X-Slack-Request-Timestamp: '1000000000'
+    expected_result: rejected_replay
+    case_tag: expired_timestamp
+  - description: Signature computed with different construction
+    mutate:
+      headers:
+        X-Slack-Signature: v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a
+    expected_result: rejected_sig
+    case_tag: tampered_payload
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        X-Slack-Signature: ''
+    expected_result: rejected_sig

@@ -1,77 +1,76 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: paypal
 name: PayPal
 category: payment
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: scale
 docs_url: https://developer.paypal.com/docs/api-basics/notifications/webhooks/notification-messages/
-
 verification:
   primary:
     type: asymmetric
     algo: sha256WithRSAEncryption
-    # PayPal sends the cert URL in the header — AparHub fetches and caches it
     key_source: cert_url_in_header
     cert_header: PAYPAL-CERT-URL
     cert_format: pem
-    sig_value: "header('PAYPAL-TRANSMISSION-SIG')"
-    # PayPal construction: transmission_id|timestamp|webhook_id|crc32(body)
-    signing_input: "header('PAYPAL-TRANSMISSION-ID') + '|' + header('PAYPAL-TRANSMISSION-TIME') + '|' + params.webhook_id + '|' + crc32(raw_body)"
+    sig_value: header('PAYPAL-TRANSMISSION-SIG')
+    signing_input: header('PAYPAL-TRANSMISSION-ID') + '|' + header('PAYPAL-TRANSMISSION-TIME')
+      + '|' + params.webhook_id + '|' + crc32(raw_body)
     cache_ttl_seconds: 3600
     refresh_on_unknown_key_id: true
-
-  # PayPal also uses dataless notifications — minimal payload, fetch full event via API
-  # This is layered on top of the asymmetric verification, not instead of it.
-  # After signature verification, if the payload is a dataless notification,
-  # AparHub fetches the full event and forwards that instead.
-
 registration:
   customer_fields:
-    - name: client_id
-      label: Client ID
-      type: text
-      required: true
-      help_text: "PayPal Developer Dashboard → My Apps & Credentials → REST API apps → your app → Client ID"
-    - name: client_secret
-      label: Client Secret
-      type: secret
-      required: true
-      help_text: "PayPal Developer Dashboard → My Apps & Credentials → REST API apps → your app → Secret"
-    - name: webhook_id
-      label: Webhook ID
-      type: text
-      required: true
-      help_text: "PayPal Developer Dashboard → My Apps & Credentials → your app → Webhooks → webhook ID (shown after you register the AparHub ingest URL)"
-
+  - name: client_id
+    label: Client ID
+    type: text
+    required: true
+    help_text: PayPal Developer Dashboard → My Apps & Credentials → REST API apps
+      → your app → Client ID
+  - name: client_secret
+    label: Client Secret
+    type: secret
+    required: true
+    help_text: PayPal Developer Dashboard → My Apps & Credentials → REST API apps
+      → your app → Secret
+  - name: webhook_id
+    label: Webhook ID
+    type: text
+    required: true
+    help_text: PayPal Developer Dashboard → My Apps & Credentials → your app → Webhooks
+      → webhook ID (shown after you register the AparHub ingest URL)
 events:
-  - name: PAYMENT.CAPTURE.COMPLETED
-    description: Payment capture completed
-  - name: PAYMENT.CAPTURE.DENIED
-    description: Payment capture denied
-  - name: PAYMENT.CAPTURE.REFUNDED
-    description: Payment capture refunded
-  - name: CHECKOUT.ORDER.APPROVED
-    description: Order approved by buyer
-  - name: CHECKOUT.ORDER.COMPLETED
-    description: Order completed
-  - name: CUSTOMER.DISPUTE.CREATED
-    description: Dispute raised
-  - name: CUSTOMER.DISPUTE.RESOLVED
-    description: Dispute resolved
-  - name: INVOICING.INVOICE.PAID
-    description: Invoice paid
-
+- name: PAYMENT.CAPTURE.COMPLETED
+  description: Payment capture completed
+- name: PAYMENT.CAPTURE.DENIED
+  description: Payment capture denied
+- name: PAYMENT.CAPTURE.REFUNDED
+  description: Payment capture refunded
+- name: CHECKOUT.ORDER.APPROVED
+  description: Order approved by buyer
+- name: CHECKOUT.ORDER.COMPLETED
+  description: Order completed
+- name: CUSTOMER.DISPUTE.CREATED
+  description: Dispute raised
+- name: CUSTOMER.DISPUTE.RESOLVED
+  description: Dispute resolved
+- name: INVOICING.INVOICE.PAID
+  description: Invoice paid
 test_harness:
-  # PayPal asymmetric verification requires a real cert chain to test.
-  # CI uses a self-signed test cert + matching private key held in CI secrets.
-  test_secret: "CI_PAYPAL_TEST_CERT"
+  test_secret: CI_PAYPAL_TEST_CERT
   sample_headers:
-    PAYPAL-TRANSMISSION-ID: "test-transmission-id-abc123"
-    PAYPAL-TRANSMISSION-TIME: "2024-04-25T10:00:00Z"
-    PAYPAL-CERT-URL: "https://api.paypal.com/v1/notifications/certs/CERT-test"
-    PAYPAL-AUTH-ALGO: "SHA256withRSA"
-    PAYPAL-TRANSMISSION-SIG: "base64_encoded_signature_placeholder=="
-    Content-Type: "application/json"
+    PAYPAL-TRANSMISSION-ID: test-transmission-id-abc123
+    PAYPAL-TRANSMISSION-TIME: '2024-04-25T10:00:00Z'
+    PAYPAL-CERT-URL: https://api.paypal.com/v1/notifications/certs/CERT-test
+    PAYPAL-AUTH-ALGO: SHA256withRSA
+    PAYPAL-TRANSMISSION-SIG: base64_encoded_signature_placeholder==
+    Content-Type: application/json
   sample_payload: '{"id":"WH-abc123","event_type":"PAYMENT.CAPTURE.COMPLETED","resource_type":"capture","resource":{"id":"cap_abc123","amount":{"value":"100.00","currency_code":"USD"},"status":"COMPLETED"}}'
   expected_result: verified
+  additional_cases:
+  - description: Invalid signature — tampered or wrong key
+    case_tag: invalid_signature
+    mutate:
+      headers:
+        PAYPAL-TRANSMISSION-SIG: invalidsignaturevalue==
+    expected_result: rejected_sig

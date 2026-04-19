@@ -1,50 +1,64 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: billdesk
 name: BillDesk
 category: payment
-region_tags: [in]
+region_tags:
+- in
 status: official
 tier_required: starter
 docs_url: https://www.billdesk.com/api-docs/webhooks
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: "header('bdsk-api-key')"
-    signing_input: "raw_body"
+    sig_value: header('bdsk-api-key')
+    signing_input: raw_body
     secret_field: webhook_secret
-
 registration:
   customer_fields:
-    - name: merchant_id
-      label: Merchant ID
-      type: text
-      required: true
-      help_text: "BillDesk Merchant Portal → Profile → Merchant ID"
-    - name: webhook_secret
-      label: Webhook Secret
-      type: secret
-      required: true
-      help_text: "BillDesk Merchant Portal → Settings → Webhooks → API Key"
-
+  - name: merchant_id
+    label: Merchant ID
+    type: text
+    required: true
+    help_text: BillDesk Merchant Portal → Profile → Merchant ID
+  - name: webhook_secret
+    label: Webhook Secret
+    type: secret
+    required: true
+    help_text: BillDesk Merchant Portal → Settings → Webhooks → API Key
 events:
-  - name: transaction.success
-    description: Transaction completed successfully
-  - name: transaction.failed
-    description: Transaction failed
-  - name: transaction.pending
-    description: Transaction pending confirmation
-  - name: refund.initiated
-    description: Refund initiated
-  - name: refund.success
-    description: Refund completed
-
+- name: transaction.success
+  description: Transaction completed successfully
+- name: transaction.failed
+  description: Transaction failed
+- name: transaction.pending
+  description: Transaction pending confirmation
+- name: refund.initiated
+  description: Refund initiated
+- name: refund.success
+  description: Refund completed
 test_harness:
-  test_secret: "test_billdesk_secret"
+  test_secret: test_billdesk_secret
   sample_headers:
-    bdsk-api-key: "e28f62a0be8f20a1c32205a5fa3dd746c3b6c3232ad2c689167b5b899e885e60"
-    Content-Type: "application/json"
+    bdsk-api-key: e28f62a0be8f20a1c32205a5fa3dd746c3b6c3232ad2c689167b5b899e885e60
+    Content-Type: application/json
   sample_payload: '{"mercid":"MERCHANT01","orderid":"ord_123","amount":"100.00","currency":"356","txndate":"20240425","authstatus":"0300","pga_txnid":"PGA123456"}'
   expected_result: verified
+  additional_cases:
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"mercid":"MERCHANT01","orderid":"ord_123","amount":"100.00","currency":"356","txndate":"20240425","authstatus":"0300","pga_txnid":"PGA123456","injected":true}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        bdsk-api-key: ''
+    expected_result: rejected_sig

@@ -1,74 +1,91 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: zoom
 name: Zoom
 category: communication
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: starter
 docs_url: https://developers.zoom.us/docs/api/rest/webhook-reference/
-
 verification:
-  # Zoom sends a URL validation challenge when registering a webhook endpoint.
-  # The challenge arrives as a POST (unlike Facebook which uses GET).
-  # AparHub handles it automatically — customer never writes this code.
   registration_challenge:
     type: one_time_verify
     method: POST
-    challenge_param: plainToken        # JSON body field containing the challenge
-    verify_token_param: null           # No separate verify token — Zoom uses HMAC on the challenge
-    response_type: compute_hash        # Response: {"encryptedToken": HMAC-SHA256(secret, plainToken)}
+    challenge_param: plainToken
+    verify_token_param: null
+    response_type: compute_hash
     response_content_type: application/json
-
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: "header('x-zm-signature').trimPrefix('v0=')"
-    # Zoom construction: "v0:" + timestamp + ":" + raw_body
-    signing_input: "'v0:' + header('x-zm-request-timestamp') + ':' + raw_body"
-
+    sig_value: header('x-zm-signature').trimPrefix('v0=')
+    signing_input: '''v0:'' + header(''x-zm-request-timestamp'') + '':'' + raw_body'
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: "int(header('x-zm-request-timestamp'))"
+    timestamp_value: int(header('x-zm-request-timestamp'))
     tolerance_seconds: 300
-
 registration:
   customer_fields:
-    - name: webhook_secret
-      label: Secret Token
-      type: secret
-      required: true
-      help_text: "Zoom Marketplace → your app → Feature → Event Subscriptions → Secret Token"
-
+  - name: webhook_secret
+    label: Secret Token
+    type: secret
+    required: true
+    help_text: Zoom Marketplace → your app → Feature → Event Subscriptions → Secret
+      Token
 events:
-  - name: meeting.started
-    description: Meeting started
-  - name: meeting.ended
-    description: Meeting ended
-  - name: meeting.participant_joined
-    description: Participant joined a meeting
-  - name: meeting.participant_left
-    description: Participant left a meeting
-  - name: meeting.recording_completed
-    description: Cloud recording completed
-  - name: webinar.started
-    description: Webinar started
-  - name: webinar.ended
-    description: Webinar ended
-  - name: user.created
-    description: User account created
-
+- name: meeting.started
+  description: Meeting started
+- name: meeting.ended
+  description: Meeting ended
+- name: meeting.participant_joined
+  description: Participant joined a meeting
+- name: meeting.participant_left
+  description: Participant left a meeting
+- name: meeting.recording_completed
+  description: Cloud recording completed
+- name: webinar.started
+  description: Webinar started
+- name: webinar.ended
+  description: Webinar ended
+- name: user.created
+  description: User account created
 test_harness:
-  test_secret: "test_zoom_secret_token"
+  test_secret: test_zoom_secret_token
   sample_headers:
-    x-zm-signature: "v0=55d748fa7251cadf500a03b6fe0ee0fbc94594804831578f612962d27134d4c5"
-    x-zm-request-timestamp: "1714000000"
-    Content-Type: "application/json"
-  sample_payload: '{"event":"meeting.started","payload":{"account_id":"abc123","object":{"id":"123456789","topic":"Test Meeting","start_time":"2024-04-25T10:00:00Z"}}}'
+    x-zm-signature: v0=55d748fa7251cadf500a03b6fe0ee0fbc94594804831578f612962d27134d4c5
+    x-zm-request-timestamp: '1714000000'
+    Content-Type: application/json
+  sample_payload: '{"event":"meeting.started","payload":{"account_id":"abc123","object":{"id":"123456789","topic":"Test
+    Meeting","start_time":"2024-04-25T10:00:00Z"}}}'
   expected_result: verified
   additional_cases:
-    - description: Stale timestamp
-      mutate:
-        headers:
-          x-zm-request-timestamp: "1000000000"
-      expected_result: rejected_replay
+  - description: Stale timestamp
+    mutate:
+      headers:
+        x-zm-request-timestamp: '1000000000'
+    expected_result: rejected_replay
+    case_tag: expired_timestamp
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"event":"meeting.started","payload":{"account_id":"abc123","object":{"id":"123456789","topic":"Test
+        Meeting","start_time":"2024-04-25T10:00:00Z","injected":true}}}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        x-zm-signature: ''
+    expected_result: rejected_sig
+  - description: Wrong verify token in registration challenge
+    case_tag: wrong_verify_token
+    mutate:
+      query:
+        hub.verify_token: wrong_token_value
+    expected_result: rejected_challenge

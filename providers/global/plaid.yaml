@@ -1,12 +1,12 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: plaid
 name: Plaid
 category: fintech
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: scale
 docs_url: https://plaid.com/docs/api/webhooks/webhook-verification/
-
 verification:
   primary:
     type: jwt
@@ -14,56 +14,56 @@ verification:
     jwt_location: header
     jwt_header: plaid-verification
     key_source: jwks_url
-    # Plaid uses POST to their JWKS endpoint — unusual, most use GET
     jwks_url: https://production.plaid.com/webhook_verification_key/get
     jwks_fetch_method: POST
     key_id_field: kid
     validate_claims:
-      # iat tolerance doubles as replay prevention for JWT-based providers
       iat_tolerance_seconds: 300
     cache_ttl_seconds: 3600
     refresh_on_unknown_key_id: true
-
 registration:
   customer_fields:
-    - name: client_id
-      label: Plaid Client ID
-      type: text
-      required: true
-      help_text: "Plaid Dashboard → Team Settings → Keys → client_id"
-    - name: environment
-      label: Environment
-      type: select
-      required: true
-      options:
-        - value: production
-          label: Production
-        - value: sandbox
-          label: Sandbox
-      help_text: "Match this to the Plaid environment your app uses."
-
+  - name: client_id
+    label: Plaid Client ID
+    type: text
+    required: true
+    help_text: Plaid Dashboard → Team Settings → Keys → client_id
+  - name: environment
+    label: Environment
+    type: select
+    required: true
+    options:
+    - value: production
+      label: Production
+    - value: sandbox
+      label: Sandbox
+    help_text: Match this to the Plaid environment your app uses.
 events:
-  - name: TRANSACTIONS_DEFAULT_UPDATE
-    description: New transactions available
-  - name: TRANSACTIONS_INITIAL_UPDATE
-    description: Initial transaction data available after link
-  - name: TRANSACTIONS_HISTORICAL_UPDATE
-    description: Historical transactions backfilled
-  - name: ITEM_ERROR
-    description: Item encountered an error requiring re-authentication
-  - name: ITEM_LOGIN_REQUIRED
-    description: Login credentials need refreshing
-  - name: PAYMENT_STATUS_UPDATE
-    description: Payment transfer status changed
-  - name: IDENTITY_VERIFICATION_STATUS_UPDATED
-    description: Identity verification status changed
-
+- name: TRANSACTIONS_DEFAULT_UPDATE
+  description: New transactions available
+- name: TRANSACTIONS_INITIAL_UPDATE
+  description: Initial transaction data available after link
+- name: TRANSACTIONS_HISTORICAL_UPDATE
+  description: Historical transactions backfilled
+- name: ITEM_ERROR
+  description: Item encountered an error requiring re-authentication
+- name: ITEM_LOGIN_REQUIRED
+  description: Login credentials need refreshing
+- name: PAYMENT_STATUS_UPDATE
+  description: Payment transfer status changed
+- name: IDENTITY_VERIFICATION_STATUS_UPDATED
+  description: Identity verification status changed
 test_harness:
-  # JWT verification requires a real ES256 key pair for CI.
-  # CI uses a test key pair with kid matching the sample JWT.
-  test_secret: "CI_PLAID_TEST_PRIVATE_KEY"
+  test_secret: CI_PLAID_TEST_PRIVATE_KEY
   sample_headers:
-    plaid-verification: "eyJhbGciOiJFUzI1NiIsImtpZCI6InRlc3Qta2lkLTAwMSIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3MTQwMDAwMDAsInJlcXVlc3RfYm9keV9zaGEyNTYiOiJhYmMxMjMifQ.test_signature"
-    Content-Type: "application/json"
+    plaid-verification: eyJhbGciOiJFUzI1NiIsImtpZCI6InRlc3Qta2lkLTAwMSIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3MTQwMDAwMDAsInJlcXVlc3RfYm9keV9zaGEyNTYiOiJhYmMxMjMifQ.test_signature
+    Content-Type: application/json
   sample_payload: '{"webhook_type":"TRANSACTIONS","webhook_code":"DEFAULT_UPDATE","item_id":"item_abc123","new_transactions":3}'
   expected_result: verified
+  additional_cases:
+  - description: Invalid JWT — tampered or signed with wrong key
+    case_tag: invalid_signature
+    mutate:
+      headers:
+        plaid-verification: eyJhbGciOiJFUzI1NiIsImtpZCI6InRlc3Qta2lkLTAwMSIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3MTQwMDAwMDAsInJlcXVlc3RfYm9keV9zaGEyNTYiOiJhYmMxMjMifQ.INVALIDSIGNATUREXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    expected_result: rejected_sig

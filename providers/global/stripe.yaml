@@ -1,86 +1,99 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: stripe
 name: Stripe
 category: payment
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: starter
 docs_url: https://stripe.com/docs/webhooks/signatures
-
 idempotency:
   key_source: body_field
   key_field: id
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    # Stripe header: "t=1614553200,v1=abc123,v0=def456"
-    # Extract the v1 signature — v0 is legacy, skip it
-    sig_value: "header('Stripe-Signature').split(',').filter(s, s.startsWith('v1=')).first().split('=', 2)[1]"
-    # Stripe construction: timestamp + "." + raw_body
-    signing_input: "header('Stripe-Signature').split(',').filter(s, s.startsWith('t=')).first().split('=', 2)[1] + '.' + raw_body"
-    secret_encoding: base64  # Stripe secrets: whsec_<base64> — strip prefix, base64-decode
-
+    sig_value: header('Stripe-Signature').split(',').filter(s, s.startsWith('v1=')).first().split('=',
+      2)[1]
+    signing_input: header('Stripe-Signature').split(',').filter(s, s.startsWith('t=')).first().split('=',
+      2)[1] + '.' + raw_body
+    secret_encoding: base64
   replay_prevention:
     mechanism: timestamp
-    # Timestamp embedded in same Stripe-Signature header as t=<unix>
-    timestamp_value: "int(header('Stripe-Signature').split(',').filter(s, s.startsWith('t=')).first().split('=', 2)[1])"
+    timestamp_value: int(header('Stripe-Signature').split(',').filter(s, s.startsWith('t=')).first().split('=',
+      2)[1])
     tolerance_seconds: 300
-
 registration:
   customer_fields:
-    - name: webhook_secret
-      label: Webhook signing secret
-      type: secret
-      required: true
-      placeholder: "whsec_…"
-      help_text: "Stripe Dashboard → Developers → Webhooks → select webhook → Signing secret. Starts with whsec_."
-
+  - name: webhook_secret
+    label: Webhook signing secret
+    type: secret
+    required: true
+    placeholder: whsec_…
+    help_text: Stripe Dashboard → Developers → Webhooks → select webhook → Signing
+      secret. Starts with whsec_.
 events:
-  - name: payment_intent.succeeded
-    description: PaymentIntent confirmed and payment collected
-  - name: payment_intent.payment_failed
-    description: PaymentIntent failed
-  - name: payment_intent.created
-    description: PaymentIntent created
-  - name: charge.succeeded
-    description: Charge succeeded
-  - name: charge.failed
-    description: Charge failed
-  - name: charge.dispute.created
-    description: Dispute opened on a charge
-  - name: charge.refunded
-    description: Charge refunded
-  - name: customer.created
-    description: Customer object created
-  - name: customer.subscription.created
-    description: Subscription created
-  - name: customer.subscription.deleted
-    description: Subscription cancelled
-  - name: invoice.payment_succeeded
-    description: Invoice payment succeeded
-  - name: invoice.payment_failed
-    description: Invoice payment failed
-  - name: checkout.session.completed
-    description: Checkout session completed
-
+- name: payment_intent.succeeded
+  description: PaymentIntent confirmed and payment collected
+- name: payment_intent.payment_failed
+  description: PaymentIntent failed
+- name: payment_intent.created
+  description: PaymentIntent created
+- name: charge.succeeded
+  description: Charge succeeded
+- name: charge.failed
+  description: Charge failed
+- name: charge.dispute.created
+  description: Dispute opened on a charge
+- name: charge.refunded
+  description: Charge refunded
+- name: customer.created
+  description: Customer object created
+- name: customer.subscription.created
+  description: Subscription created
+- name: customer.subscription.deleted
+  description: Subscription cancelled
+- name: invoice.payment_succeeded
+  description: Invoice payment succeeded
+- name: invoice.payment_failed
+  description: Invoice payment failed
+- name: checkout.session.completed
+  description: Checkout session completed
 test_harness:
-  test_secret: "whsec_test_stripe_abc123456789"
+  test_secret: whsec_test_stripe_abc123456789
   sample_headers:
-    Stripe-Signature: "t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore"
-    Content-Type: "application/json"
+    Stripe-Signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore
+    Content-Type: application/json
   sample_payload: '{"id":"evt_abc123","object":"event","type":"payment_intent.succeeded","data":{"object":{"id":"pi_abc123","amount":1000,"currency":"usd","status":"succeeded"}}}'
   expected_result: verified
   additional_cases:
-    - description: Expired timestamp — more than 5 minutes old
-      mutate:
-        headers:
-          Stripe-Signature: "t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore"
-      expected_result: rejected_replay
-    - description: Invalid signature with valid timestamp
-      mutate:
-        headers:
-          Stripe-Signature: "t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore"
-      expected_result: rejected_sig
+  - description: Expired timestamp — more than 5 minutes old
+    mutate:
+      headers:
+        Stripe-Signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore
+    expected_result: rejected_replay
+    case_tag: expired_timestamp
+  - description: Invalid signature with valid timestamp
+    mutate:
+      headers:
+        Stripe-Signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore
+    expected_result: rejected_sig
+    case_tag: expired_timestamp
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"id":"evt_abc123","object":"event","type":"payment_intent.succeeded","data":{"object":{"id":"pi_abc123","amount":1000,"currency":"usd","status":"succeeded","injected":true}}}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        Stripe-Signature: ''
+    expected_result: rejected_sig

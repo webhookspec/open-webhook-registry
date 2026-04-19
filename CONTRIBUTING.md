@@ -63,7 +63,19 @@ Use the PR template. CI runs automatically — if it passes, your spec is mechan
 
 ## Rules
 
-**The test harness is mandatory.** No spec without a passing test harness will be merged. The test harness is how we catch specs that are syntactically valid but semantically wrong.
+**The test harness is mandatory and must have complete failure coverage.** No spec without a passing test harness will be merged.
+
+Every `additional_cases` entry requires a `case_tag`. The validator enforces mandatory coverage per strategy:
+
+| Strategy | Required case_tags |
+|---|---|
+| `hmac` | `wrong_secret`, `tampered_payload`, `missing_header` |
+| `hmac` + `replay_prevention` | above + `expired_timestamp` |
+| `shared_secret` | `wrong_secret`, `missing_header` |
+| `asymmetric` / `jwt` | `invalid_signature` |
+| any + `registration_challenge` | `wrong_verify_token` |
+
+A spec that passes schema validation but is missing required case_tags will be rejected by CI.
 
 **No production secrets.** `test_harness.test_secret` must be a clearly fake value. Never use a real API key, signing secret, or credential.
 
