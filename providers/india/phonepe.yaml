@@ -2,7 +2,7 @@ spec_version: "1.0.0"
 slug: phonepe
 name: PhonePe
 category: payment
-region_tags: [india]
+region_tags: [in]
 status: official
 tier_required: starter
 docs_url: https://developer.phonepe.com/v1/docs/webhook-integration/

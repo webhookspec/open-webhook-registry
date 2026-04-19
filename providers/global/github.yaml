@@ -7,6 +7,10 @@ status: official
 tier_required: starter
 docs_url: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 
+idempotency:
+  key_source: header
+  key_field: X-GitHub-Delivery
+
 verification:
   primary:
     type: hmac

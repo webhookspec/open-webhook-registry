@@ -7,6 +7,10 @@ status: official
 tier_required: starter
 docs_url: https://shopify.dev/docs/apps/webhooks/configuration/https#step-5-verify-the-webhook
 
+idempotency:
+  key_source: header
+  key_field: X-Shopify-Webhook-Id
+
 verification:
   primary:
     type: hmac

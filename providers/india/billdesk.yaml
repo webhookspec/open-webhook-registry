@@ -2,7 +2,7 @@ spec_version: "1.0.0"
 slug: billdesk
 name: BillDesk
 category: payment
-region_tags: [india]
+region_tags: [in]
 status: official
 tier_required: starter
 docs_url: https://www.billdesk.com/api-docs/webhooks

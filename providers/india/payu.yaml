@@ -2,7 +2,7 @@ spec_version: "1.0.0"
 slug: payu
 name: PayU
 category: payment
-region_tags: [india]
+region_tags: [in]
 status: official
 tier_required: starter
 docs_url: https://devguide.payu.in/payment-gateway/server-to-server-integration/webhooks/

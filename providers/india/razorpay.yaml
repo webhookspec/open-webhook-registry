@@ -2,13 +2,17 @@ spec_version: "1.0.0"
 slug: razorpay
 name: Razorpay
 category: payment
-region_tags: [india]
+region_tags: [in, my, sg, us]
 status: official
 tier_required: starter
 docs_url: https://razorpay.com/docs/webhooks/validate-test/
 ip_allowlist:
   - 182.75.0.0/16
   - 54.185.249.0/24
+
+idempotency:
+  key_source: header
+  key_field: x-razorpay-event-id
 
 verification:
   primary:

@@ -2,7 +2,7 @@ spec_version: "1.0.0"
 slug: cashfree
 name: Cashfree Payments
 category: payment
-region_tags: [india]
+region_tags: [in]
 status: official
 tier_required: starter
 docs_url: https://docs.cashfree.com/docs/webhook-verification

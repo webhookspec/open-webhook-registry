@@ -146,6 +146,29 @@
     "test_harness": {
       "$ref": "#/$defs/TestHarness",
       "description": "MANDATORY. Used by CI to verify spec correctness before merge. No spec without a test harness."
+    },
+    "idempotency": {
+      "type": "object",
+      "description": "Provider-declared idempotency key. AparHub extracts this automatically for deduplication. Customer override in SourceOverrides takes precedence if set.",
+      "required": [
+        "key_source",
+        "key_field"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key_source": {
+          "type": "string",
+          "enum": [
+            "header",
+            "body_field"
+          ],
+          "description": "header = extract from HTTP request header. body_field = JSON path into the request body."
+        },
+        "key_field": {
+          "type": "string",
+          "description": "For key_source=header: HTTP header name (case-insensitive). For key_source=body_field: dot-notation JSON path into the parsed request body. Use [n] for array indexing. Examples: id | data.payment.entity.id | [0].eventId | payload.event.id"
+        }
+      }
     }
   },
   "$defs": {
