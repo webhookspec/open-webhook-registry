@@ -56,6 +56,10 @@ def validate_schema(spec: dict, schema: dict, path: pathlib.Path) -> list[str]:
 def validate_test_harness(spec: dict, path: pathlib.Path) -> list[str]:
     errors = []
     harness = spec.get("test_harness", {})
+    primary = spec.get("verification", {}).get("primary", {})
+    strategy_type = primary.get("type", "")
+    has_replay = bool(spec.get("verification", {}).get("replay_prevention"))
+    has_otv = bool(spec.get("verification", {}).get("registration_challenge"))
 
     if not harness.get("test_secret"):
         errors.append("test_harness.test_secret is empty")
@@ -70,21 +74,48 @@ def validate_test_harness(spec: dict, path: pathlib.Path) -> list[str]:
     if result not in VALID_RESULTS:
         errors.append(f"test_harness.expected_result '{result}' not in {VALID_RESULTS}")
 
-    # Primary test case should always be 'verified'
     if result != "verified":
         errors.append("test_harness.expected_result for primary case must be 'verified'")
 
-    # Additional cases must each have a description, mutate, and expected_result
-    for i, case in enumerate(harness.get("additional_cases", [])):
+    # Collect case_tags from additional_cases
+    cases = harness.get("additional_cases", [])
+    for i, case in enumerate(cases):
         if not case.get("description"):
             errors.append(f"additional_cases[{i}].description is missing")
         if not case.get("mutate"):
             errors.append(f"additional_cases[{i}].mutate is missing")
         if case.get("expected_result") not in VALID_RESULTS:
             errors.append(f"additional_cases[{i}].expected_result invalid")
-        # Additional cases should test failure paths
         if case.get("expected_result") == "verified":
-            errors.append(f"additional_cases[{i}] has expected_result='verified' — additional cases should test rejection paths")
+            errors.append(f"additional_cases[{i}] has expected_result='verified' — additional cases must test rejection paths")
+        if not case.get("case_tag"):
+            errors.append(f"additional_cases[{i}].case_tag is missing — required for coverage enforcement")
+
+    tags = {c.get("case_tag") for c in cases}
+
+    # Mandatory coverage per strategy type
+    if strategy_type == "hmac":
+        if "wrong_secret" not in tags:
+            errors.append("test_harness missing case_tag='wrong_secret' — required for hmac strategy")
+        if "tampered_payload" not in tags:
+            errors.append("test_harness missing case_tag='tampered_payload' — required for hmac strategy")
+        if "missing_header" not in tags:
+            errors.append("test_harness missing case_tag='missing_header' — required for hmac strategy")
+        if has_replay and "expired_timestamp" not in tags:
+            errors.append("test_harness missing case_tag='expired_timestamp' — required when replay_prevention is declared")
+
+    elif strategy_type == "shared_secret":
+        if "wrong_secret" not in tags:
+            errors.append("test_harness missing case_tag='wrong_secret' — required for shared_secret strategy")
+        if "missing_header" not in tags:
+            errors.append("test_harness missing case_tag='missing_header' — required for shared_secret strategy")
+
+    elif strategy_type in {"asymmetric", "jwt"}:
+        if "invalid_signature" not in tags:
+            errors.append(f"test_harness missing case_tag='invalid_signature' — required for {strategy_type} strategy")
+
+    if has_otv and "wrong_verify_token" not in tags:
+        errors.append("test_harness missing case_tag='wrong_verify_token' — required when registration_challenge is declared")
 
     return errors
 

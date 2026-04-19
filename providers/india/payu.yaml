@@ -1,60 +1,69 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: payu
 name: PayU
 category: payment
-region_tags: [in]
+region_tags:
+- in
 status: official
 tier_required: starter
 docs_url: https://devguide.payu.in/payment-gateway/server-to-server-integration/webhooks/
-
 verification:
   primary:
     type: hmac
-    # PayU uses SHA-512 — the outlier among Indian providers
     algo: sha512
     encoding: hex
-    sig_value: "header('PayU-Checksum')"
-    # PayU construction: key|txnid|amount|productinfo|firstname|email|||||||||||salt
-    # Simplified: fields are pipe-separated in a provider-specific order
-    # For webhook specifically: hash = sha512(salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key)
-    signing_input: "params.salt + '|' + body_field('status') + '||||||' + body_field('udf5') + '|' + body_field('udf4') + '|' + body_field('udf3') + '|' + body_field('udf2') + '|' + body_field('udf1') + '|' + body_field('email') + '|' + body_field('firstname') + '|' + body_field('productinfo') + '|' + body_field('amount') + '|' + body_field('txnid') + '|' + params.merchant_key"
-
+    sig_value: header('PayU-Checksum')
+    signing_input: params.salt + '|' + body_field('status') + '||||||' + body_field('udf5')
+      + '|' + body_field('udf4') + '|' + body_field('udf3') + '|' + body_field('udf2')
+      + '|' + body_field('udf1') + '|' + body_field('email') + '|' + body_field('firstname')
+      + '|' + body_field('productinfo') + '|' + body_field('amount') + '|' + body_field('txnid')
+      + '|' + params.merchant_key
 registration:
   customer_fields:
-    - name: merchant_key
-      label: Merchant Key
-      type: text
-      required: true
-      help_text: "PayU Dashboard → Profile → Merchant Info → Merchant Key"
-    - name: salt
-      label: Merchant Salt
-      type: secret
-      required: true
-      help_text: "PayU Dashboard → Profile → Merchant Info → Salt (Version 1)"
-
+  - name: merchant_key
+    label: Merchant Key
+    type: text
+    required: true
+    help_text: PayU Dashboard → Profile → Merchant Info → Merchant Key
+  - name: salt
+    label: Merchant Salt
+    type: secret
+    required: true
+    help_text: PayU Dashboard → Profile → Merchant Info → Salt (Version 1)
 events:
-  - name: payment_success
-    description: Payment completed successfully
-  - name: payment_failure
-    description: Payment failed
-  - name: payment_pending
-    description: Payment in pending state
-  - name: refund_initiated
-    description: Refund process started
-  - name: refund_success
-    description: Refund completed
-  - name: chargeback
-    description: Chargeback raised
-
+- name: payment_success
+  description: Payment completed successfully
+- name: payment_failure
+  description: Payment failed
+- name: payment_pending
+  description: Payment in pending state
+- name: refund_initiated
+  description: Refund process started
+- name: refund_success
+  description: Refund completed
+- name: chargeback
+  description: Chargeback raised
 test_harness:
-  test_secret: "test_payu_salt_abc"
+  test_secret: test_payu_salt_abc
   sample_headers:
-    PayU-Checksum: "30935e89b43677cdeb3651ff29d24bf8ef4ece85172924c0200c93af8afcb1bce31fd726cbe4806eea41aa8c830db7ba01b605c96a648749f3bdc481d910cc4d"
-    Content-Type: "application/x-www-form-urlencoded"
-  sample_payload: "txnid=txn_abc123&amount=100.00&productinfo=TestProduct&firstname=John&email=john%40example.com&udf1=&udf2=&udf3=&udf4=&udf5=&status=success"
+    PayU-Checksum: 30935e89b43677cdeb3651ff29d24bf8ef4ece85172924c0200c93af8afcb1bce31fd726cbe4806eea41aa8c830db7ba01b605c96a648749f3bdc481d910cc4d
+    Content-Type: application/x-www-form-urlencoded
+  sample_payload: txnid=txn_abc123&amount=100.00&productinfo=TestProduct&firstname=John&email=john%40example.com&udf1=&udf2=&udf3=&udf4=&udf5=&status=success
   expected_result: verified
   additional_cases:
-    - description: Tampered amount
-      mutate:
-        payload: "txnid=txn_abc123&amount=999.00&productinfo=TestProduct&firstname=John&email=john%40example.com&udf1=&udf2=&udf3=&udf4=&udf5=&status=success"
-      expected_result: rejected_sig
+  - description: Tampered amount
+    mutate:
+      payload: txnid=txn_abc123&amount=999.00&productinfo=TestProduct&firstname=John&email=john%40example.com&udf1=&udf2=&udf3=&udf4=&udf5=&status=success
+    expected_result: rejected_sig
+    case_tag: tampered_payload
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        PayU-Checksum: ''
+    expected_result: rejected_sig

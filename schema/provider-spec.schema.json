@@ -50,8 +50,17 @@
       "items": {
         "type": "string",
         "enum": [
-          "in", "sg", "my", "au", "ae", "gb", "us", "eu", "global"
-        ]
+          "in",
+          "global",
+          "us",
+          "eu",
+          "apac",
+          "sg",
+          "my",
+          "au",
+          "ae"
+        ],
+        "description": "ISO 3166-1 alpha-2 country codes for markets where this provider operates. Use \"global\" when available worldwide. Examples: in, us, sg, my, au, ae, gb, eu (EU region)."
       },
       "minItems": 1,
       "description": "Geographic relevance tags. india = India-first providers."
@@ -158,11 +167,11 @@
             "header",
             "body_field"
           ],
-          "description": "header = extract from HTTP request header. body_field = JSON path into the request body."
+          "description": "header = extract from HTTP request header (case-insensitive). body_field = dot-notation path into the parsed JSON request body. Only valid when Content-Type is application/json."
         },
         "key_field": {
           "type": "string",
-          "description": "For key_source=header: HTTP header name (case-insensitive). For key_source=body_field: dot-notation JSON path into the parsed request body. Use [n] for array indexing. Examples: id | data.payment.entity.id | [0].eventId | payload.event.id"
+          "description": "For key_source=header: HTTP header name. For key_source=body_field: dot-notation JSON path. Use [n] for array index. Examples: id | data.payment.entity.id | [0].eventId | payload.event.id"
         }
       }
     }
@@ -726,7 +735,7 @@
     },
     "TestHarness": {
       "type": "object",
-      "description": "MANDATORY. CI runs the verification engine against this data and asserts the result matches expected_result. A spec without a passing test harness will not be merged.",
+      "description": "MANDATORY. CI validates every spec against this harness. The primary case must have expected_result=verified. additional_cases must cover ALL of the following for the declared strategy: HMAC: rejected_sig (wrong secret), rejected_sig (tampered payload), rejected_sig (missing/empty header), rejected_replay (if replay_prevention declared). Shared secret: rejected_sig (wrong token), rejected_sig (missing header). One-time verify: rejected_challenge (wrong verify token). JWT/Asymmetric: rejected_sig (invalid signature) \u2014 use CI test key pair. A spec without full failure coverage will not be merged.",
       "required": [
         "test_secret",
         "sample_headers",
@@ -768,7 +777,8 @@
             "required": [
               "description",
               "mutate",
-              "expected_result"
+              "expected_result",
+              "case_tag"
             ],
             "additionalProperties": false,
             "properties": {
@@ -788,6 +798,20 @@
                   "rejected_replay",
                   "rejected_challenge"
                 ]
+              },
+              "case_tag": {
+                "type": "string",
+                "enum": [
+                  "wrong_secret",
+                  "tampered_payload",
+                  "missing_header",
+                  "expired_timestamp",
+                  "wrong_verify_token",
+                  "invalid_signature",
+                  "wrong_encoding",
+                  "replay_nonce"
+                ],
+                "description": "Machine-readable tag identifying what failure mode this case tests. Used by the validator to enforce complete coverage. wrong_secret: correct payload, wrong HMAC key. tampered_payload: correct secret, mutated body. missing_header: signature header absent or empty. expired_timestamp: timestamp outside tolerance window. wrong_verify_token: one-time verify challenge with wrong token. invalid_signature: asymmetric/JWT signature verification failure. wrong_encoding: correct HMAC but wrong encoding (hex vs base64). replay_nonce: nonce already seen."
               }
             }
           }

@@ -1,87 +1,93 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: razorpay
 name: Razorpay
 category: payment
-region_tags: [in, my, sg, us]
+region_tags:
+- in
+- my
+- sg
+- us
 status: official
 tier_required: starter
 docs_url: https://razorpay.com/docs/webhooks/validate-test/
 ip_allowlist:
-  - 182.75.0.0/16
-  - 54.185.249.0/24
-
+- 182.75.0.0/16
+- 54.185.249.0/24
 idempotency:
   key_source: header
   key_field: x-razorpay-event-id
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    # No prefix — Razorpay sends raw hex digest
-    sig_value: "header('X-Razorpay-Signature')"
-    signing_input: "raw_body"
-    # Razorpay does not send timestamps — no replay_prevention block
-
+    sig_value: header('X-Razorpay-Signature')
+    signing_input: raw_body
 registration:
   customer_fields:
-    - name: webhook_secret
-      label: Webhook Secret
-      type: secret
-      required: true
-      placeholder: "Enter the secret you configured in Razorpay Dashboard"
-      help_text: "Razorpay Dashboard → Settings → Webhooks → Secret. This is the secret YOU set — not your API key."
-
+  - name: webhook_secret
+    label: Webhook Secret
+    type: secret
+    required: true
+    placeholder: Enter the secret you configured in Razorpay Dashboard
+    help_text: Razorpay Dashboard → Settings → Webhooks → Secret. This is the secret
+      YOU set — not your API key.
 events:
-  - name: payment.authorized
-    description: Payment authorised but not captured
-  - name: payment.captured
-    description: Payment successfully captured
-  - name: payment.failed
-    description: Payment attempt failed
-  - name: payment.dispute.created
-    description: Dispute raised on a payment
-  - name: payment.dispute.won
-    description: Dispute resolved in merchant's favour
-  - name: payment.dispute.lost
-    description: Dispute resolved against merchant
-  - name: refund.created
-    description: Refund initiated
-  - name: refund.failed
-    description: Refund processing failed
-  - name: refund.processed
-    description: Refund completed
-  - name: order.paid
-    description: Order fully paid
-  - name: invoice.paid
-    description: Invoice payment received
-  - name: invoice.expired
-    description: Invoice expired unpaid
-  - name: subscription.activated
-    description: Subscription became active
-  - name: subscription.charged
-    description: Subscription renewal payment collected
-  - name: subscription.cancelled
-    description: Subscription cancelled
-  - name: virtual_account.credited
-    description: Virtual account received a credit
-  - name: transfer.processed
-    description: Marketplace transfer processed
-
+- name: payment.authorized
+  description: Payment authorised but not captured
+- name: payment.captured
+  description: Payment successfully captured
+- name: payment.failed
+  description: Payment attempt failed
+- name: payment.dispute.created
+  description: Dispute raised on a payment
+- name: payment.dispute.won
+  description: Dispute resolved in merchant's favour
+- name: payment.dispute.lost
+  description: Dispute resolved against merchant
+- name: refund.created
+  description: Refund initiated
+- name: refund.failed
+  description: Refund processing failed
+- name: refund.processed
+  description: Refund completed
+- name: order.paid
+  description: Order fully paid
+- name: invoice.paid
+  description: Invoice payment received
+- name: invoice.expired
+  description: Invoice expired unpaid
+- name: subscription.activated
+  description: Subscription became active
+- name: subscription.charged
+  description: Subscription renewal payment collected
+- name: subscription.cancelled
+  description: Subscription cancelled
+- name: virtual_account.credited
+  description: Virtual account received a credit
+- name: transfer.processed
+  description: Marketplace transfer processed
 test_harness:
-  test_secret: "test_razorpay_secret_abc123"
+  test_secret: test_razorpay_secret_abc123
   sample_headers:
-    X-Razorpay-Signature: "559e8293b4cc7d945d507b0e8d30c3f9505095b68cceee5313eaee949a3cecbe"
-    Content-Type: "application/json"
+    X-Razorpay-Signature: 559e8293b4cc7d945d507b0e8d30c3f9505095b68cceee5313eaee949a3cecbe
+    Content-Type: application/json
   sample_payload: '{"entity":"event","account_id":"acc_abc123","event":"payment.captured","contains":["payment"],"payload":{"payment":{"entity":{"id":"pay_abc123","amount":50000,"currency":"INR","status":"captured"}}}}'
   expected_result: verified
   additional_cases:
-    - description: Tampered payload — signature should not match
-      mutate:
-        payload: '{"entity":"event","account_id":"acc_abc123","event":"payment.captured","contains":["payment"],"payload":{"payment":{"entity":{"id":"pay_abc123","amount":99999,"currency":"INR","status":"captured"}}}}'
-      expected_result: rejected_sig
-    - description: Wrong secret
-      mutate:
-        secret: "wrong_secret"
-      expected_result: rejected_sig
+  - description: Tampered payload — signature should not match
+    mutate:
+      payload: '{"entity":"event","account_id":"acc_abc123","event":"payment.captured","contains":["payment"],"payload":{"payment":{"entity":{"id":"pay_abc123","amount":99999,"currency":"INR","status":"captured"}}}}'
+    expected_result: rejected_sig
+    case_tag: tampered_payload
+  - description: Wrong secret
+    mutate:
+      secret: wrong_secret
+    expected_result: rejected_sig
+    case_tag: wrong_secret
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        X-Razorpay-Signature: ''
+    expected_result: rejected_sig

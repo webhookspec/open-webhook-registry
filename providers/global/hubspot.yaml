@@ -1,80 +1,86 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: hubspot
 name: HubSpot
 category: crm
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: starter
 docs_url: https://developers.hubspot.com/docs/api/webhooks/validating-requests
-
-# HubSpot has three signature versions. v3 is current and recommended.
-# v1 and v2 are deprecated — separate specs if needed.
-
 idempotency:
   key_source: body_field
-  key_field: "[0].eventId"
-
+  key_field: '[0].eventId'
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: "header('X-HubSpot-Signature-v3')"
-    # HubSpot v3 construction: HTTP method + URI + raw_body + timestamp
-    # Note: URI includes query string. Timestamp is from X-HubSpot-Signature-Timestamp header.
-    signing_input: "request_method + request_uri + raw_body + header('X-HubSpot-Signature-Timestamp')"
-
+    sig_value: header('X-HubSpot-Signature-v3')
+    signing_input: request_method + request_uri + raw_body + header('X-HubSpot-Signature-Timestamp')
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: "int(header('X-HubSpot-Signature-Timestamp'))"
+    timestamp_value: int(header('X-HubSpot-Signature-Timestamp'))
     tolerance_seconds: 300
-
 registration:
   customer_fields:
-    - name: webhook_secret
-      label: Client Secret
-      type: secret
-      required: true
-      help_text: "HubSpot Developer Account → Apps → your app → Auth → Client Secret"
-
+  - name: webhook_secret
+    label: Client Secret
+    type: secret
+    required: true
+    help_text: HubSpot Developer Account → Apps → your app → Auth → Client Secret
 events:
-  - name: contact.creation
-    description: Contact created
-  - name: contact.deletion
-    description: Contact deleted
-  - name: contact.merge
-    description: Contacts merged
-  - name: contact.propertyChange
-    description: Contact property updated
-  - name: company.creation
-    description: Company created
-  - name: company.deletion
-    description: Company deleted
-  - name: company.propertyChange
-    description: Company property updated
-  - name: deal.creation
-    description: Deal created
-  - name: deal.deletion
-    description: Deal deleted
-  - name: deal.propertyChange
-    description: Deal property updated
-  - name: conversation.creation
-    description: Conversation created in inbox
-
+- name: contact.creation
+  description: Contact created
+- name: contact.deletion
+  description: Contact deleted
+- name: contact.merge
+  description: Contacts merged
+- name: contact.propertyChange
+  description: Contact property updated
+- name: company.creation
+  description: Company created
+- name: company.deletion
+  description: Company deleted
+- name: company.propertyChange
+  description: Company property updated
+- name: deal.creation
+  description: Deal created
+- name: deal.deletion
+  description: Deal deleted
+- name: deal.propertyChange
+  description: Deal property updated
+- name: conversation.creation
+  description: Conversation created in inbox
 test_harness:
-  test_secret: "test_hubspot_client_secret"
+  test_secret: test_hubspot_client_secret
   sample_headers:
-    X-HubSpot-Signature-v3: "fkxqXYCDm/M8a53y1oEM7Lwo2BwnxazJb7OOJdInsHo="
-    X-HubSpot-Signature-Timestamp: "1714000000000"
-    Content-Type: "application/json"
-    # Simulated request metadata (engine injects these from actual request)
-    X-AparHub-Request-Method: "POST"
-    X-AparHub-Request-URI: "https://whi.aparhub.com/v1/whsec_test123"
+    X-HubSpot-Signature-v3: fkxqXYCDm/M8a53y1oEM7Lwo2BwnxazJb7OOJdInsHo=
+    X-HubSpot-Signature-Timestamp: '1714000000000'
+    Content-Type: application/json
+    X-AparHub-Request-Method: POST
+    X-AparHub-Request-URI: https://whi.aparhub.com/v1/whsec_test123
   sample_payload: '[{"eventId":1,"subscriptionId":123,"portalId":456,"occurredAt":1714000000000,"subscriptionType":"contact.creation","attemptNumber":0,"objectId":789,"changeSource":"CRM","changeFlag":"CREATED"}]'
   expected_result: verified
   additional_cases:
-    - description: Expired timestamp
-      mutate:
-        headers:
-          X-HubSpot-Signature-Timestamp: "1000000000000"
-      expected_result: rejected_replay
+  - description: Expired timestamp
+    mutate:
+      headers:
+        X-HubSpot-Signature-Timestamp: '1000000000000'
+    expected_result: rejected_replay
+    case_tag: expired_timestamp
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '[{"eventId":1,"subscriptionId":123,"portalId":456,"occurredAt":1714000000000,"subscriptionType":"contact.creation","attemptNumber":0,"objectId":789,"changeSource":"CRM","changeFlag":"CREATED","injected":true}]'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        X-HubSpot-Signature-v3: ''
+    expected_result: rejected_sig

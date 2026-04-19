@@ -1,63 +1,71 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: cashfree
 name: Cashfree Payments
 category: payment
-region_tags: [in]
+region_tags:
+- in
 status: official
 tier_required: starter
 docs_url: https://docs.cashfree.com/docs/webhook-verification
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: "header('x-webhook-signature')"
-    # Cashfree construction: timestamp (from header) + raw_body
-    signing_input: "header('x-webhook-timestamp') + raw_body"
-
+    sig_value: header('x-webhook-signature')
+    signing_input: header('x-webhook-timestamp') + raw_body
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: "int(header('x-webhook-timestamp'))"
+    timestamp_value: int(header('x-webhook-timestamp'))
     tolerance_seconds: 300
-
 registration:
   customer_fields:
-    - name: webhook_secret
-      label: Client Secret Key
-      type: secret
-      required: true
-      help_text: "Cashfree Dashboard → Developers → API Keys → Client Secret"
-
+  - name: webhook_secret
+    label: Client Secret Key
+    type: secret
+    required: true
+    help_text: Cashfree Dashboard → Developers → API Keys → Client Secret
 events:
-  - name: PAYMENT_SUCCESS
-    description: Payment completed successfully
-  - name: PAYMENT_FAILED
-    description: Payment attempt failed
-  - name: PAYMENT_USER_DROPPED
-    description: Customer dropped off during payment
-  - name: REFUND_STATUS_WEBHOOK
-    description: Refund status update
-  - name: DISPUTE_OPENED
-    description: Dispute raised
-  - name: DISPUTE_RESOLVED
-    description: Dispute resolved
-
+- name: PAYMENT_SUCCESS
+  description: Payment completed successfully
+- name: PAYMENT_FAILED
+  description: Payment attempt failed
+- name: PAYMENT_USER_DROPPED
+  description: Customer dropped off during payment
+- name: REFUND_STATUS_WEBHOOK
+  description: Refund status update
+- name: DISPUTE_OPENED
+  description: Dispute raised
+- name: DISPUTE_RESOLVED
+  description: Dispute resolved
 test_harness:
-  test_secret: "test_cashfree_secret_xyz789"
+  test_secret: test_cashfree_secret_xyz789
   sample_headers:
-    x-webhook-signature: "7R1T+h2Y4mygHgSt5G6mJun9LW27tPMEI62jyy3QGOc="
-    x-webhook-timestamp: "1714000000"
-    Content-Type: "application/json"
+    x-webhook-signature: 7R1T+h2Y4mygHgSt5G6mJun9LW27tPMEI62jyy3QGOc=
+    x-webhook-timestamp: '1714000000'
+    Content-Type: application/json
   sample_payload: '{"data":{"order":{"order_id":"order_abc","order_amount":500.00,"order_currency":"INR"},"payment":{"cf_payment_id":"12345","payment_status":"SUCCESS","payment_amount":500.00}},"event_time":"2024-04-25T10:00:00+05:30","type":"PAYMENT_SUCCESS"}'
   expected_result: verified
   additional_cases:
-    - description: Expired timestamp — more than 5 minutes old
-      mutate:
-        headers:
-          x-webhook-timestamp: "1000000000"
-      expected_result: rejected_replay
-    - description: Tampered payload
-      mutate:
-        payload: '{"data":{"order":{"order_id":"order_abc","order_amount":999.00}},"type":"PAYMENT_SUCCESS"}'
-      expected_result: rejected_sig
+  - description: Expired timestamp — more than 5 minutes old
+    mutate:
+      headers:
+        x-webhook-timestamp: '1000000000'
+    expected_result: rejected_replay
+    case_tag: expired_timestamp
+  - description: Tampered payload
+    mutate:
+      payload: '{"data":{"order":{"order_id":"order_abc","order_amount":999.00}},"type":"PAYMENT_SUCCESS"}'
+    expected_result: rejected_sig
+    case_tag: tampered_payload
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        x-webhook-signature: ''
+    expected_result: rejected_sig

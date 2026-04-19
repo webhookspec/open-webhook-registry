@@ -1,65 +1,78 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: phonepe
 name: PhonePe
 category: payment
-region_tags: [in]
+region_tags:
+- in
 status: official
 tier_required: starter
 docs_url: https://developer.phonepe.com/v1/docs/webhook-integration/
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: "header('X-VERIFY')"
-    # PhonePe construction: SHA256(base64(payload) + "/pg/v1/status/" + salt_key) + "###" + salt_index
-    # sig_value contains the hash portion before "###"
-    # Engine extracts the hash and salt_index from X-VERIFY
-    signing_input: "base64_encode(raw_body) + params.api_endpoint + params.salt_key"
+    sig_value: header('X-VERIFY')
+    signing_input: base64_encode(raw_body) + params.api_endpoint + params.salt_key
     secret_field: salt_key
-
 registration:
   customer_fields:
-    - name: merchant_id
-      label: Merchant ID
-      type: text
-      required: true
-      help_text: "PhonePe Merchant Dashboard → Account → Merchant ID"
-    - name: salt_key
-      label: Salt Key
-      type: secret
-      required: true
-      help_text: "PhonePe Merchant Dashboard → Account → Salt Key"
-    - name: salt_index
-      label: Salt Index
-      type: text
-      required: true
-      placeholder: "1"
-      help_text: "PhonePe Merchant Dashboard → Account → Salt Index (usually 1)"
-    - name: api_endpoint
-      label: API Endpoint Path
-      type: text
-      required: true
-      placeholder: "/pg/v1/status/"
-      help_text: "The API endpoint path used in webhook signature. Default: /pg/v1/status/"
-
+  - name: merchant_id
+    label: Merchant ID
+    type: text
+    required: true
+    help_text: PhonePe Merchant Dashboard → Account → Merchant ID
+  - name: salt_key
+    label: Salt Key
+    type: secret
+    required: true
+    help_text: PhonePe Merchant Dashboard → Account → Salt Key
+  - name: salt_index
+    label: Salt Index
+    type: text
+    required: true
+    placeholder: '1'
+    help_text: PhonePe Merchant Dashboard → Account → Salt Index (usually 1)
+  - name: api_endpoint
+    label: API Endpoint Path
+    type: text
+    required: true
+    placeholder: /pg/v1/status/
+    help_text: 'The API endpoint path used in webhook signature. Default: /pg/v1/status/'
 events:
-  - name: PAYMENT_SUCCESS
-    description: Payment completed successfully
-  - name: PAYMENT_ERROR
-    description: Payment encountered an error
-  - name: PAYMENT_PENDING
-    description: Payment is pending
-  - name: REFUND_SUCCESS
-    description: Refund completed
-  - name: REFUND_INITIATED
-    description: Refund process started
-
+- name: PAYMENT_SUCCESS
+  description: Payment completed successfully
+- name: PAYMENT_ERROR
+  description: Payment encountered an error
+- name: PAYMENT_PENDING
+  description: Payment is pending
+- name: REFUND_SUCCESS
+  description: Refund completed
+- name: REFUND_INITIATED
+  description: Refund process started
 test_harness:
-  test_secret: "test_phonepe_salt_key"
+  test_secret: test_phonepe_salt_key
   sample_headers:
-    X-VERIFY: "846ba12449cc73e644f18e4f03d6cce9397a0bede2f2f18945b4b2c8b411e0fe"
-    Content-Type: "application/json"
-  sample_payload: '{"success":true,"code":"PAYMENT_SUCCESS","message":"Your request has been successfully completed.","data":{"merchantId":"MERCHANTID","merchantTransactionId":"txn_123","transactionId":"T2024","amount":10000,"state":"COMPLETED","responseCode":"SUCCESS"}}'
+    X-VERIFY: 846ba12449cc73e644f18e4f03d6cce9397a0bede2f2f18945b4b2c8b411e0fe
+    Content-Type: application/json
+  sample_payload: '{"success":true,"code":"PAYMENT_SUCCESS","message":"Your request
+    has been successfully completed.","data":{"merchantId":"MERCHANTID","merchantTransactionId":"txn_123","transactionId":"T2024","amount":10000,"state":"COMPLETED","responseCode":"SUCCESS"}}'
   expected_result: verified
+  additional_cases:
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"success":true,"code":"PAYMENT_SUCCESS","message":"Your request has
+        been successfully completed.","data":{"merchantId":"MERCHANTID","merchantTransactionId":"txn_123","transactionId":"T2024","amount":10000,"state":"COMPLETED","responseCode":"SUCCESS","injected":true}}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        X-VERIFY: ''
+    expected_result: rejected_sig

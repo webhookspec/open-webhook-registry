@@ -1,66 +1,72 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: juspay
 name: Juspay
 category: payment
-region_tags: [in]
+region_tags:
+- in
 status: official
 tier_required: starter
 docs_url: https://developer.juspay.in/docs/webhooks
-
 idempotency:
   key_source: body_field
   key_field: id
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: "header('x-jp-merchant-id') + '.' + header('x-signature')"
-    # Juspay signs the raw body with the webhook secret
-    signing_input: "raw_body"
+    sig_value: header('x-jp-merchant-id') + '.' + header('x-signature')
+    signing_input: raw_body
     secret_field: webhook_secret
-
 registration:
   customer_fields:
-    - name: merchant_id
-      label: Merchant ID
-      type: text
-      required: true
-      help_text: "Juspay Dashboard → Settings → Merchant ID"
-    - name: webhook_secret
-      label: Webhook Secret
-      type: secret
-      required: true
-      help_text: "Juspay Dashboard → Settings → Webhooks → Secret Key"
-
+  - name: merchant_id
+    label: Merchant ID
+    type: text
+    required: true
+    help_text: Juspay Dashboard → Settings → Merchant ID
+  - name: webhook_secret
+    label: Webhook Secret
+    type: secret
+    required: true
+    help_text: Juspay Dashboard → Settings → Webhooks → Secret Key
 events:
-  - name: ORDER_SUCCEEDED
-    description: Order payment completed
-  - name: ORDER_FAILED
-    description: Order payment failed
-  - name: MANDATE_SUCCESS
-    description: Mandate registration successful
-  - name: MANDATE_PAUSED
-    description: Mandate paused
-  - name: MANDATE_REVOKED
-    description: Mandate revoked
-  - name: REFUND_INITIATED
-    description: Refund process started
-  - name: REFUND_SUCCEEDED
-    description: Refund completed successfully
-
+- name: ORDER_SUCCEEDED
+  description: Order payment completed
+- name: ORDER_FAILED
+  description: Order payment failed
+- name: MANDATE_SUCCESS
+  description: Mandate registration successful
+- name: MANDATE_PAUSED
+  description: Mandate paused
+- name: MANDATE_REVOKED
+  description: Mandate revoked
+- name: REFUND_INITIATED
+  description: Refund process started
+- name: REFUND_SUCCEEDED
+  description: Refund completed successfully
 test_harness:
-  test_secret: "test_juspay_secret_xyz"
+  test_secret: test_juspay_secret_xyz
   sample_headers:
-    x-signature: "K9pQ2mN5vR8sT1uW4xY7zA3bC0dE6fG="
-    x-jp-merchant-id: "Omqru79s7aHQLYHI/0kP493j3Ri399381est9Kw/M8I="
-    Content-Type: "application/json"
+    x-signature: K9pQ2mN5vR8sT1uW4xY7zA3bC0dE6fG=
+    x-jp-merchant-id: Omqru79s7aHQLYHI/0kP493j3Ri399381est9Kw/M8I=
+    Content-Type: application/json
   sample_payload: '{"id":"ord_abc123","order_id":"ext_ord_123","status":"CHARGED","amount":100.0,"currency":"INR","date_created":"2024-04-25T10:00:00Z","customer_id":"cust_123"}'
   expected_result: verified
   additional_cases:
-    - description: Missing signature header
-      mutate:
-        headers:
-          x-signature: ""
-      expected_result: rejected_sig
+  - description: Missing signature header
+    mutate:
+      headers:
+        x-signature: ''
+    expected_result: rejected_sig
+    case_tag: missing_header
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"id":"ord_abc123","order_id":"ext_ord_123","status":"CHARGED","amount":100.0,"currency":"INR","date_created":"2024-04-25T10:00:00Z","customer_id":"cust_123","injected":true}'
+    expected_result: rejected_sig

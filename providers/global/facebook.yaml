@@ -1,15 +1,13 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: facebook
 name: Facebook Graph API
 category: social
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: starter
 docs_url: https://developers.facebook.com/docs/graph-api/webhooks/getting-started
-
 verification:
-  # Facebook sends a GET challenge when registering the webhook URL.
-  # AparHub responds automatically — customer never sees this.
   registration_challenge:
     type: one_time_verify
     method: GET
@@ -20,51 +18,64 @@ verification:
     verify_token_field: verify_token
     response_type: echo_challenge_value
     response_content_type: text/plain
-
   primary:
     type: hmac
-    # Facebook uses SHA-1 — legacy, not upgradeable by consumers
     algo: sha1
     encoding: hex
-    # Facebook sends: "sha1=<hex_digest>"
-    sig_value: "header('X-Hub-Signature').trimPrefix('sha1=')"
-    signing_input: "raw_body"
+    sig_value: header('X-Hub-Signature').trimPrefix('sha1=')
+    signing_input: raw_body
     secret_field: app_secret
-
 registration:
   customer_fields:
-    - name: app_secret
-      label: App Secret
-      type: secret
-      required: true
-      help_text: "Facebook Developers → Your App → Settings → Basic → App Secret"
-    - name: verify_token
-      label: Verify Token
-      type: text
-      required: true
-      help_text: "A string you choose. Must match exactly what you enter in Facebook Webhooks → Verify Token field when configuring the webhook."
-
+  - name: app_secret
+    label: App Secret
+    type: secret
+    required: true
+    help_text: Facebook Developers → Your App → Settings → Basic → App Secret
+  - name: verify_token
+    label: Verify Token
+    type: text
+    required: true
+    help_text: A string you choose. Must match exactly what you enter in Facebook
+      Webhooks → Verify Token field when configuring the webhook.
 events:
-  - name: feed
-    description: Changes to page feed (posts, comments, reactions)
-  - name: messages
-    description: Messages received by the page
-  - name: messaging_postbacks
-    description: Postback button tapped in Messenger
-  - name: messaging_referrals
-    description: User arrives via referral link
-  - name: mention
-    description: Page mentioned in a post
-
+- name: feed
+  description: Changes to page feed (posts, comments, reactions)
+- name: messages
+  description: Messages received by the page
+- name: messaging_postbacks
+  description: Postback button tapped in Messenger
+- name: messaging_referrals
+  description: User arrives via referral link
+- name: mention
+  description: Page mentioned in a post
 test_harness:
-  test_secret: "test_facebook_app_secret"
+  test_secret: test_facebook_app_secret
   sample_headers:
-    X-Hub-Signature: "sha1=01b1cb49695c15bace95008e7561f8f6eb129734"
-    Content-Type: "application/json"
+    X-Hub-Signature: sha1=01b1cb49695c15bace95008e7561f8f6eb129734
+    Content-Type: application/json
   sample_payload: '{"object":"page","entry":[{"id":"123456789","time":1714000000,"messaging":[{"sender":{"id":"987654321"},"recipient":{"id":"123456789"},"timestamp":1714000000,"message":{"mid":"m_abc123","text":"Hello"}}]}]}'
   expected_result: verified
   additional_cases:
-    - description: Tampered payload
-      mutate:
-        payload: '{"object":"page","entry":[{"id":"HACKED","time":1714000000}]}'
-      expected_result: rejected_sig
+  - description: Tampered payload
+    mutate:
+      payload: '{"object":"page","entry":[{"id":"HACKED","time":1714000000}]}'
+    expected_result: rejected_sig
+    case_tag: tampered_payload
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        X-Hub-Signature: ''
+    expected_result: rejected_sig
+  - description: Wrong verify token in registration challenge
+    case_tag: wrong_verify_token
+    mutate:
+      query:
+        hub.verify_token: wrong_token_value
+    expected_result: rejected_challenge

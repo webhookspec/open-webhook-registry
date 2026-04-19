@@ -1,67 +1,83 @@
-spec_version: "1.0.0"
+spec_version: 1.0.0
 slug: shopify
 name: Shopify
 category: ecommerce
-region_tags: [global]
+region_tags:
+- global
 status: official
 tier_required: starter
 docs_url: https://shopify.dev/docs/apps/webhooks/configuration/https#step-5-verify-the-webhook
-
 idempotency:
   key_source: header
   key_field: X-Shopify-Webhook-Id
-
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: "header('X-Shopify-Hmac-SHA256')"
-    signing_input: "raw_body"
+    sig_value: header('X-Shopify-Hmac-SHA256')
+    signing_input: raw_body
     secret_field: client_secret
-
 registration:
   customer_fields:
-    - name: client_secret
-      label: Client Secret
-      type: secret
-      required: true
-      help_text: "Shopify Partners → App → API credentials → Client secret. For custom apps: Shopify Admin → Settings → Apps → your app → API credentials."
-
+  - name: client_secret
+    label: Client Secret
+    type: secret
+    required: true
+    help_text: 'Shopify Partners → App → API credentials → Client secret. For custom
+      apps: Shopify Admin → Settings → Apps → your app → API credentials.'
 events:
-  - name: orders/create
-    description: New order placed
-  - name: orders/updated
-    description: Order updated
-  - name: orders/paid
-    description: Order payment confirmed
-  - name: orders/fulfilled
-    description: Order fulfilled
-  - name: orders/cancelled
-    description: Order cancelled
-  - name: orders/refunded
-    description: Order refunded
-  - name: products/create
-    description: New product created
-  - name: products/update
-    description: Product updated
-  - name: customers/create
-    description: New customer created
-  - name: checkouts/create
-    description: Checkout started
-  - name: checkouts/update
-    description: Checkout updated
-  - name: fulfillments/create
-    description: Fulfilment created
-  - name: app/uninstalled
-    description: App uninstalled from shop
-
+- name: orders/create
+  description: New order placed
+- name: orders/updated
+  description: Order updated
+- name: orders/paid
+  description: Order payment confirmed
+- name: orders/fulfilled
+  description: Order fulfilled
+- name: orders/cancelled
+  description: Order cancelled
+- name: orders/refunded
+  description: Order refunded
+- name: products/create
+  description: New product created
+- name: products/update
+  description: Product updated
+- name: customers/create
+  description: New customer created
+- name: checkouts/create
+  description: Checkout started
+- name: checkouts/update
+  description: Checkout updated
+- name: fulfillments/create
+  description: Fulfilment created
+- name: app/uninstalled
+  description: App uninstalled from shop
 test_harness:
-  test_secret: "test_shopify_client_secret"
+  test_secret: test_shopify_client_secret
   sample_headers:
-    X-Shopify-Hmac-SHA256: "cP6RB40evQv0qTchUt6d1UrfcoBEnAZrxwr7OMMZcnU="
-    X-Shopify-Topic: "orders/create"
-    X-Shopify-Shop-Domain: "test-shop.myshopify.com"
-    Content-Type: "application/json"
-  sample_payload: '{"id":123456789,"email":"customer@example.com","total_price":"99.00","currency":"USD","line_items":[{"id":987,"title":"Test Product","quantity":1,"price":"99.00"}]}'
+    X-Shopify-Hmac-SHA256: cP6RB40evQv0qTchUt6d1UrfcoBEnAZrxwr7OMMZcnU=
+    X-Shopify-Topic: orders/create
+    X-Shopify-Shop-Domain: test-shop.myshopify.com
+    Content-Type: application/json
+  sample_payload: '{"id":123456789,"email":"customer@example.com","total_price":"99.00","currency":"USD","line_items":[{"id":987,"title":"Test
+    Product","quantity":1,"price":"99.00"}]}'
   expected_result: verified
+  additional_cases:
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"id":123456789,"email":"customer@example.com","total_price":"99.00","currency":"USD","line_items":[{"id":987,"title":"Test
+        Product","quantity":1,"price":"99.00","injected":true}]}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        X-Shopify-Hmac-SHA256: ''
+    expected_result: rejected_sig
