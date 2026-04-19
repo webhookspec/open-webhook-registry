@@ -7,6 +7,10 @@ status: official
 tier_required: starter
 docs_url: https://stripe.com/docs/webhooks/signatures
 
+idempotency:
+  key_source: body_field
+  key_field: id
+
 verification:
   primary:
     type: hmac

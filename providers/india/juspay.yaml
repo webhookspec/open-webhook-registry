@@ -2,10 +2,14 @@ spec_version: "1.0.0"
 slug: juspay
 name: Juspay
 category: payment
-region_tags: [india]
+region_tags: [in]
 status: official
 tier_required: starter
 docs_url: https://developer.juspay.in/docs/webhooks
+
+idempotency:
+  key_source: body_field
+  key_field: id
 
 verification:
   primary:

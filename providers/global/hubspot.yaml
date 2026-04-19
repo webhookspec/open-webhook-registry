@@ -10,6 +10,10 @@ docs_url: https://developers.hubspot.com/docs/api/webhooks/validating-requests
 # HubSpot has three signature versions. v3 is current and recommended.
 # v1 and v2 are deprecated — separate specs if needed.
 
+idempotency:
+  key_source: body_field
+  key_field: "[0].eventId"
+
 verification:
   primary:
     type: hmac
