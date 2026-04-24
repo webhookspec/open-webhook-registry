@@ -5,7 +5,6 @@ category: payment
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://stripe.com/docs/webhooks/signatures
 idempotency:
   key_source: body_field
@@ -15,15 +14,16 @@ verification:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: header('Stripe-Signature').split(',').filter(s, s.startsWith('v1=')).first().split('=',
+    sig_value: request.headers['stripe-signature'][0].split(',').filter(s, s.startsWith('v1=')).first().split('=',
       2)[1]
-    signing_input: header('Stripe-Signature').split(',').filter(s, s.startsWith('t=')).first().split('=',
-      2)[1] + '.' + raw_body
-    secret_encoding: base64
+    signing_input: request.headers['stripe-signature'][0].split(',').filter(s, s.startsWith('t=')).first().split('=',
+      2)[1] + '.' + request.body
+    sig_header_format: t={ts},v1={sig}
+    secret_encoding: raw
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: int(header('Stripe-Signature').split(',').filter(s, s.startsWith('t=')).first().split('=',
-      2)[1])
+    timestamp_value: int(request.headers['stripe-signature'][0].split(',').filter(s,
+      s.startsWith('t=')).first().split('=', 2)[1])
     tolerance_seconds: 300
 registration:
   customer_fields:
@@ -62,24 +62,19 @@ events:
 - name: checkout.session.completed
   description: Checkout session completed
 test_harness:
-  test_secret: whsec_test_stripe_abc123456789
+  test_secret: test_stripe_abc123456789
+  test_timestamp_unix: 1714000000
   sample_headers:
-    Stripe-Signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore
+    stripe-signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a
     Content-Type: application/json
   sample_payload: '{"id":"evt_abc123","object":"event","type":"payment_intent.succeeded","data":{"object":{"id":"pi_abc123","amount":1000,"currency":"usd","status":"succeeded"}}}'
   expected_result: verified
   additional_cases:
-  - description: Expired timestamp — more than 5 minutes old
+  - description: Expired timestamp — stale sig re-signed at Unix(1000000000)
     mutate:
       headers:
-        Stripe-Signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore
+        stripe-signature: t=1000000000,v1=72813047c4f9ffef1f9244df7be6beec7935cdbaa7974924a3e94442c0d20516
     expected_result: rejected_replay
-    case_tag: expired_timestamp
-  - description: Invalid signature with valid timestamp
-    mutate:
-      headers:
-        Stripe-Signature: t=1714000000,v1=7a8d0b73d119ed72e72cc3e1d9bfd42431ac541c7844c6fa526047f49162c20a,v0=legacy_ignore
-    expected_result: rejected_sig
     case_tag: expired_timestamp
   - description: Wrong secret — HMAC computed with incorrect key
     case_tag: wrong_secret
@@ -95,5 +90,5 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        Stripe-Signature: ''
+        stripe-signature: ''
     expected_result: rejected_sig

@@ -8,7 +8,6 @@ region_tags:
 - sg
 - us
 status: official
-tier_required: starter
 docs_url: https://razorpay.com/docs/webhooks/validate-test/
 ip_allowlist:
 - 182.75.0.0/16
@@ -21,8 +20,8 @@ verification:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: header('X-Razorpay-Signature')
-    signing_input: raw_body
+    sig_value: request.headers['x-razorpay-signature'][0]
+    signing_input: request.body
 registration:
   customer_fields:
   - name: webhook_secret
@@ -70,7 +69,7 @@ events:
 test_harness:
   test_secret: test_razorpay_secret_abc123
   sample_headers:
-    X-Razorpay-Signature: 559e8293b4cc7d945d507b0e8d30c3f9505095b68cceee5313eaee949a3cecbe
+    x-razorpay-signature: 559e8293b4cc7d945d507b0e8d30c3f9505095b68cceee5313eaee949a3cecbe
     Content-Type: application/json
   sample_payload: '{"entity":"event","account_id":"acc_abc123","event":"payment.captured","contains":["payment"],"payload":{"payment":{"entity":{"id":"pay_abc123","amount":50000,"currency":"INR","status":"captured"}}}}'
   expected_result: verified
@@ -89,5 +88,5 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        X-Razorpay-Signature: ''
+        x-razorpay-signature: ''
     expected_result: rejected_sig

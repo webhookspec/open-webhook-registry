@@ -1,0 +1,59 @@
+spec_version: 1.0.0
+slug: twilio
+name: Twilio
+category: communication
+region_tags:
+- global
+status: official
+docs_url: https://www.twilio.com/docs/usage/webhooks/webhooks-security
+verification:
+  primary:
+    type: hmac
+    algo: sha1
+    encoding: base64
+    sig_value: request.headers['x-twilio-signature'][0]
+    signing_input: request.url + request.form_sorted
+registration:
+  customer_fields:
+  - name: webhook_secret
+    label: Auth Token
+    type: secret
+    required: true
+    help_text: Twilio Console → Account → API keys & tokens → Auth token. This is
+      your primary auth token, not a sub-account token.
+events:
+- name: message.received
+  description: Inbound SMS or MMS received
+- name: message.status
+  description: Outbound message delivery status update (sent, delivered, failed)
+- name: call.initiated
+  description: Outbound call initiated
+- name: call.completed
+  description: Call ended
+- name: call.status
+  description: Call status callback (ringing, in-progress, completed, failed)
+test_harness:
+  test_secret: test_twilio_auth_token
+  sample_url: https://example.com/webhook/twilio
+  sample_headers:
+    x-twilio-signature: lIhKzOFWqtQa4HNkPb9xLrnCxyE=
+    Content-Type: application/x-www-form-urlencoded
+  sample_payload: AccountSid=AC123456&Body=Hello+World&From=%2B14155551234&MessageSid=SM123456&To=%2B14155559876
+  expected_result: verified
+  additional_cases:
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — form params modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: AccountSid=AC123456&Body=HACKED&From=%2B14155551234&MessageSid=SM123456&To=%2B14155559876
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        x-twilio-signature: ''
+    expected_result: rejected_sig

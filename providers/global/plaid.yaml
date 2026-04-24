@@ -5,7 +5,6 @@ category: fintech
 region_tags:
 - global
 status: official
-tier_required: scale
 docs_url: https://plaid.com/docs/api/webhooks/webhook-verification/
 verification:
   primary:

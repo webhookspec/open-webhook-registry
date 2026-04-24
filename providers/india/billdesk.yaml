@@ -5,15 +5,14 @@ category: payment
 region_tags:
 - in
 status: official
-tier_required: starter
 docs_url: https://www.billdesk.com/api-docs/webhooks
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: header('bdsk-api-key')
-    signing_input: raw_body
+    sig_value: request.headers['bdsk-api-key'][0]
+    signing_input: request.body
     secret_field: webhook_secret
 registration:
   customer_fields:

@@ -5,7 +5,6 @@ category: ecommerce
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://shopify.dev/docs/apps/webhooks/configuration/https#step-5-verify-the-webhook
 idempotency:
   key_source: header
@@ -15,8 +14,8 @@ verification:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: header('X-Shopify-Hmac-SHA256')
-    signing_input: raw_body
+    sig_value: request.headers['x-shopify-hmac-sha256'][0]
+    signing_input: request.body
     secret_field: client_secret
 registration:
   customer_fields:
@@ -56,7 +55,7 @@ events:
 test_harness:
   test_secret: test_shopify_client_secret
   sample_headers:
-    X-Shopify-Hmac-SHA256: cP6RB40evQv0qTchUt6d1UrfcoBEnAZrxwr7OMMZcnU=
+    x-shopify-hmac-sha256: cP6RB40evQv0qTchUt6d1UrfcoBEnAZrxwr7OMMZcnU=
     X-Shopify-Topic: orders/create
     X-Shopify-Shop-Domain: test-shop.myshopify.com
     Content-Type: application/json
@@ -79,5 +78,5 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        X-Shopify-Hmac-SHA256: ''
+        x-shopify-hmac-sha256: ''
     expected_result: rejected_sig

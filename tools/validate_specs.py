@@ -103,6 +103,8 @@ def validate_test_harness(spec: dict, path: pathlib.Path) -> list[str]:
             errors.append("test_harness missing case_tag='missing_header' — required for hmac strategy")
         if has_replay and "expired_timestamp" not in tags:
             errors.append("test_harness missing case_tag='expired_timestamp' — required when replay_prevention is declared")
+        if has_replay and not harness.get("test_timestamp_unix"):
+            errors.append("test_harness missing test_timestamp_unix — required when replay_prevention is declared so CI can freeze engine time")
 
     elif strategy_type == "shared_secret":
         if "wrong_secret" not in tags:
@@ -150,14 +152,6 @@ def validate_strategy(spec: dict, path: pathlib.Path) -> list[str]:
             errors.append("JWT strategy missing key_source")
         if primary.get("key_source") == "jwks_url" and not primary.get("jwks_url"):
             errors.append("JWT key_source=jwks_url but no jwks_url provided")
-
-    # Tier check — asymmetric/jwt/dataless require scale+
-    tier = spec.get("tier_required", "starter")
-    if strategy_type in {"asymmetric", "jwt", "dataless"} and tier == "starter":
-        errors.append(f"Strategy '{strategy_type}' requires tier_required: scale (or higher)")
-
-    if strategy_type == "mtls" and tier not in {"enterprise"}:
-        errors.append("mTLS strategy requires tier_required: enterprise")
 
     return errors
 

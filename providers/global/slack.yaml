@@ -5,18 +5,17 @@ category: communication
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://api.slack.com/authentication/verifying-requests-from-slack
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: header('X-Slack-Signature').trimPrefix('v0=')
-    signing_input: '''v0:'' + header(''X-Slack-Request-Timestamp'') + '':'' + raw_body'
+    sig_value: request.headers['x-slack-signature'][0].trimPrefix('v0=')
+    signing_input: '''v0:'' + request.headers[''x-slack-request-timestamp''][0] + '':'' + request.body'
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: int(header('X-Slack-Request-Timestamp'))
+    timestamp_value: int(request.headers['x-slack-request-timestamp'][0])
     tolerance_seconds: 300
 registration:
   customer_fields:
@@ -38,23 +37,24 @@ events:
   description: Slack URL verification challenge (handled automatically by AparHub)
 test_harness:
   test_secret: test_slack_signing_secret
+  test_timestamp_unix: 1714000000
   sample_headers:
-    X-Slack-Signature: v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a
-    X-Slack-Request-Timestamp: '1714000000'
+    x-slack-signature: v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a
+    x-slack-request-timestamp: '1714000000'
     Content-Type: application/x-www-form-urlencoded
   sample_payload: payload=%7B%22type%22%3A%22block_actions%22%2C%22user%22%3A%7B%22id%22%3A%22U123%22%7D%7D
   expected_result: verified
   additional_cases:
-  - description: Stale timestamp — replay attack
+  - description: Stale timestamp — stale sig re-signed at Unix(1000000000)
     mutate:
       headers:
-        X-Slack-Request-Timestamp: '1000000000'
+        x-slack-signature: v0=493282c29ab1f97972a1cfff952470bd0fd177f8edeeafe019e57c8077a192c4
+        x-slack-request-timestamp: '1000000000'
     expected_result: rejected_replay
     case_tag: expired_timestamp
-  - description: Signature computed with different construction
+  - description: Tampered payload — body modified after signing
     mutate:
-      headers:
-        X-Slack-Signature: v0=d2f6a2fb6e04638f789cda0e223f8d3d98f56191982076402d3323ba85e7d97a
+      payload: payload=%7B%22type%22%3A%22block_actions%22%2C%22user%22%3A%7B%22id%22%3A%22HACKED%22%7D%7D
     expected_result: rejected_sig
     case_tag: tampered_payload
   - description: Wrong secret — HMAC computed with incorrect key
@@ -66,5 +66,5 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        X-Slack-Signature: ''
+        x-slack-signature: ''
     expected_result: rejected_sig

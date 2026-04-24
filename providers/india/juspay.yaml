@@ -5,7 +5,6 @@ category: payment
 region_tags:
 - in
 status: official
-tier_required: starter
 docs_url: https://developer.juspay.in/docs/webhooks
 idempotency:
   key_source: body_field
@@ -15,8 +14,8 @@ verification:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: header('x-jp-merchant-id') + '.' + header('x-signature')
-    signing_input: raw_body
+    sig_value: request.headers['x-signature'][0]
+    signing_input: request.body
     secret_field: webhook_secret
 registration:
   customer_fields:
@@ -48,13 +47,13 @@ events:
 test_harness:
   test_secret: test_juspay_secret_xyz
   sample_headers:
-    x-signature: K9pQ2mN5vR8sT1uW4xY7zA3bC0dE6fG=
-    x-jp-merchant-id: Omqru79s7aHQLYHI/0kP493j3Ri399381est9Kw/M8I=
+    x-signature: Omqru79s7aHQLYHI/0kP493j3Ri399381est9Kw/M8I=
+    x-jp-merchant-id: MERCHANTID123
     Content-Type: application/json
   sample_payload: '{"id":"ord_abc123","order_id":"ext_ord_123","status":"CHARGED","amount":100.0,"currency":"INR","date_created":"2024-04-25T10:00:00Z","customer_id":"cust_123"}'
   expected_result: verified
   additional_cases:
-  - description: Missing signature header
+  - description: Missing x-signature header
     mutate:
       headers:
         x-signature: ''

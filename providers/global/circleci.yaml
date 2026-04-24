@@ -1,0 +1,53 @@
+spec_version: 1.0.0
+slug: circleci
+name: CircleCI
+category: devtools
+region_tags:
+- global
+status: official
+docs_url: https://circleci.com/docs/webhooks/#validate-a-webhook
+verification:
+  primary:
+    type: hmac
+    algo: sha256
+    encoding: hex
+    sig_value: request.headers['circleci-signature'][0].trimPrefix('v1=')
+    signing_input: request.body
+    sig_header_format: v1={sig}
+registration:
+  customer_fields:
+  - name: webhook_secret
+    label: Signing Secret
+    type: secret
+    required: true
+    help_text: CircleCI → Project Settings → Webhooks → your webhook → Signing Secret
+events:
+- name: workflow-completed
+  description: Workflow finished (success, failed, or cancelled)
+- name: job-completed
+  description: Individual job finished
+test_harness:
+  test_secret: test_circleci_secret
+  sample_headers:
+    circleci-signature: v1=d3c6eaac3de190a14c7c26e078c004dc1242da367621e3e9c98a385768c0b6b8
+    Content-Type: application/json
+  sample_payload: '{"type":"workflow-completed","id":"abc123","happened_at":"2024-04-25T10:00:00Z","webhook":{"id":"wh_abc123","name":"test
+    webhook"},"pipeline":{"id":"pipe_abc","number":42},"project":{"id":"proj_abc","name":"my-project","slug":"gh/org/my-project"},"organization":{"id":"org_abc","name":"my-org"},"workflow":{"id":"flow_abc","name":"build","status":"success","created_at":"2024-04-25T10:00:00Z","stopped_at":"2024-04-25T10:05:00Z"}}'
+  expected_result: verified
+  additional_cases:
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"type":"workflow-completed","id":"HACKED"}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        circleci-signature: ''
+    expected_result: rejected_sig
