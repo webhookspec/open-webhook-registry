@@ -5,7 +5,6 @@ category: devtools
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 idempotency:
   key_source: header
@@ -15,8 +14,8 @@ verification:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: header('X-Hub-Signature-256').trimPrefix('sha256=')
-    signing_input: raw_body
+    sig_value: request.headers['x-hub-signature-256'][0].trimPrefix('sha256=')
+    signing_input: request.body
 registration:
   customer_fields:
   - name: webhook_secret
@@ -55,7 +54,7 @@ events:
 test_harness:
   test_secret: test_github_secret_abc123
   sample_headers:
-    X-Hub-Signature-256: sha256=f4b59360d766f250b4bc9379096fe77b466f1981a8e512b65860c71662aa17e0
+    x-hub-signature-256: sha256=f4b59360d766f250b4bc9379096fe77b466f1981a8e512b65860c71662aa17e0
     X-GitHub-Event: push
     X-GitHub-Delivery: 72d3162e-cc78-11e3-81ab-4c9367dc0958
     Content-Type: application/json
@@ -77,5 +76,5 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        X-Hub-Signature-256: ''
+        x-hub-signature-256: ''
     expected_result: rejected_sig

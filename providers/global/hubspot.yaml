@@ -5,7 +5,6 @@ category: crm
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://developers.hubspot.com/docs/api/webhooks/validating-requests
 idempotency:
   key_source: body_field
@@ -15,11 +14,12 @@ verification:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: header('X-HubSpot-Signature-v3')
-    signing_input: request_method + request_uri + raw_body + header('X-HubSpot-Signature-Timestamp')
+    sig_value: request.headers['x-hubspot-signature-v3'][0]
+    signing_input: params.secrets.webhook_secret + request.method + request.url + request.body
+      + request.headers['x-hubspot-signature-timestamp'][0]
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: int(header('X-HubSpot-Signature-Timestamp'))
+    timestamp_value: int(request.headers['x-hubspot-signature-timestamp'][0])
     tolerance_seconds: 300
 registration:
   customer_fields:
@@ -53,19 +53,20 @@ events:
   description: Conversation created in inbox
 test_harness:
   test_secret: test_hubspot_client_secret
+  test_timestamp_unix: 1714000000
+  sample_url: https://example.com/webhook
   sample_headers:
-    X-HubSpot-Signature-v3: fkxqXYCDm/M8a53y1oEM7Lwo2BwnxazJb7OOJdInsHo=
-    X-HubSpot-Signature-Timestamp: '1714000000000'
+    x-hubspot-signature-v3: SFhyCsNnf4gWw/h2MYrBq+zxTSLEjlcJMx3wPjQMy84=
+    x-hubspot-signature-timestamp: '1714000000000'
     Content-Type: application/json
-    X-AparHub-Request-Method: POST
-    X-AparHub-Request-URI: https://whi.aparhub.com/v1/whsec_test123
   sample_payload: '[{"eventId":1,"subscriptionId":123,"portalId":456,"occurredAt":1714000000000,"subscriptionType":"contact.creation","attemptNumber":0,"objectId":789,"changeSource":"CRM","changeFlag":"CREATED"}]'
   expected_result: verified
   additional_cases:
-  - description: Expired timestamp
+  - description: Expired timestamp — stale sig re-signed at Unix(1000000000)
     mutate:
       headers:
-        X-HubSpot-Signature-Timestamp: '1000000000000'
+        x-hubspot-signature-v3: Fi1Vl7vVuSqkxT3JOcM6ZBdP7/g17PBlE9aWEpKJpa0=
+        x-hubspot-signature-timestamp: '1000000000000'
     expected_result: rejected_replay
     case_tag: expired_timestamp
   - description: Wrong secret — HMAC computed with incorrect key
@@ -82,5 +83,5 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        X-HubSpot-Signature-v3: ''
+        x-hubspot-signature-v3: ''
     expected_result: rejected_sig

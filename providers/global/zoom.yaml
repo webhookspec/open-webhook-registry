@@ -5,7 +5,6 @@ category: communication
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://developers.zoom.us/docs/api/rest/webhook-reference/
 verification:
   registration_challenge:
@@ -19,11 +18,11 @@ verification:
     type: hmac
     algo: sha256
     encoding: hex
-    sig_value: header('x-zm-signature').trimPrefix('v0=')
-    signing_input: '''v0:'' + header(''x-zm-request-timestamp'') + '':'' + raw_body'
+    sig_value: request.headers['x-zm-signature'][0].trimPrefix('v0=')
+    signing_input: '''v0:'' + request.headers[''x-zm-request-timestamp''][0] + '':'' + request.body'
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: int(header('x-zm-request-timestamp'))
+    timestamp_value: int(request.headers['x-zm-request-timestamp'][0])
     tolerance_seconds: 300
 registration:
   customer_fields:
@@ -52,6 +51,7 @@ events:
   description: User account created
 test_harness:
   test_secret: test_zoom_secret_token
+  test_timestamp_unix: 1714000000
   sample_headers:
     x-zm-signature: v0=55d748fa7251cadf500a03b6fe0ee0fbc94594804831578f612962d27134d4c5
     x-zm-request-timestamp: '1714000000'
@@ -60,9 +60,10 @@ test_harness:
     Meeting","start_time":"2024-04-25T10:00:00Z"}}}'
   expected_result: verified
   additional_cases:
-  - description: Stale timestamp
+  - description: Stale timestamp — stale sig re-signed at Unix(1000000000)
     mutate:
       headers:
+        x-zm-signature: v0=d3ab9b63cc045c5f43cb4e57b0c49c3aa98b1bfef9d1215936ff4616eacb43f5
         x-zm-request-timestamp: '1000000000'
     expected_result: rejected_replay
     case_tag: expired_timestamp
@@ -87,5 +88,5 @@ test_harness:
     case_tag: wrong_verify_token
     mutate:
       query:
-        hub.verify_token: wrong_token_value
+        plainToken: wrong_token_value
     expected_result: rejected_challenge

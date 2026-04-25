@@ -5,18 +5,17 @@ category: payment
 region_tags:
 - in
 status: official
-tier_required: starter
 docs_url: https://docs.cashfree.com/docs/webhook-verification
 verification:
   primary:
     type: hmac
     algo: sha256
     encoding: base64
-    sig_value: header('x-webhook-signature')
-    signing_input: header('x-webhook-timestamp') + raw_body
+    sig_value: request.headers['x-webhook-signature'][0]
+    signing_input: request.headers['x-webhook-timestamp'][0] + request.body
   replay_prevention:
     mechanism: timestamp
-    timestamp_value: int(header('x-webhook-timestamp'))
+    timestamp_value: int(request.headers['x-webhook-timestamp'][0])
     tolerance_seconds: 300
 registration:
   customer_fields:
@@ -40,6 +39,7 @@ events:
   description: Dispute resolved
 test_harness:
   test_secret: test_cashfree_secret_xyz789
+  test_timestamp_unix: 1714000000
   sample_headers:
     x-webhook-signature: 7R1T+h2Y4mygHgSt5G6mJun9LW27tPMEI62jyy3QGOc=
     x-webhook-timestamp: '1714000000'
@@ -47,9 +47,10 @@ test_harness:
   sample_payload: '{"data":{"order":{"order_id":"order_abc","order_amount":500.00,"order_currency":"INR"},"payment":{"cf_payment_id":"12345","payment_status":"SUCCESS","payment_amount":500.00}},"event_time":"2024-04-25T10:00:00+05:30","type":"PAYMENT_SUCCESS"}'
   expected_result: verified
   additional_cases:
-  - description: Expired timestamp — more than 5 minutes old
+  - description: Expired timestamp — stale sig re-signed at Unix(1000000000)
     mutate:
       headers:
+        x-webhook-signature: xffeSSz6OHc+AdlL2hgdle0Zy0IRKgV2NRaybzYdtN8=
         x-webhook-timestamp: '1000000000'
     expected_result: rejected_replay
     case_tag: expired_timestamp

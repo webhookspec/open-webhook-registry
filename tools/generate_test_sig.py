@@ -30,34 +30,64 @@ from typing import Any
 def evaluate_cel_simple(expr: str, context: dict) -> str:
     """
     Simplified CEL evaluator for the subset of expressions used in provider specs.
-    Covers: header(), raw_body, string concat (+), trimPrefix(), split(), filter(),
-    startsWith(), first(), int(), base64_encode(), crc32()
-    
-    Not a full CEL implementation — covers the patterns in this catalog.
+
+    Supported conventions:
+      request.body                           — raw request body
+      request.method                         — HTTP method string
+      request.url                            — full URL string
+      request.headers['name'][0]             — header value (lowercase name)
+      request.form['field']                  — URL-encoded form field value (decoded)
+      request.form_sorted                    — sorted key+value concat for Twilio-style signing
+      params.<name>                          — non-secret customer field
+      params.secrets.<name>                  — secret customer field
+      base64_encode(x)                       — base64 encode
+      crc32(x)                               — CRC32 as string
+      int(x)                                 — pass-through (value already a string)
+      .trimPrefix('p') / .split() etc.       — standard string ops
+
+    Legacy (still accepted for backward compat):
+      raw_body                               — alias for request.body
+      header('Name')                         — alias for request.headers['name'][0]
+      request_method / request_uri           — legacy aliases
+      body_field('f')                        — alias for request.form['f']
     """
     expr = expr.strip()
-    
-    # raw_body
-    if expr == "raw_body":
-        return context.get("raw_body", "")
-    
+
+    # request.body / raw_body
+    if expr in ("request.body", "raw_body"):
+        return context.get("body", context.get("raw_body", ""))
+
+    # request.method / request_method
+    if expr in ("request.method", "request_method"):
+        return context.get("method", "POST")
+
+    # request.url / request_uri
+    if expr in ("request.url", "request_uri"):
+        return context.get("url", context.get("sample_url", ""))
+
+    # request.form_sorted  — sorted key+value concat (Twilio)
+    if expr == "request.form_sorted":
+        from urllib.parse import parse_qsl
+        body = context.get("body", context.get("raw_body", ""))
+        params = sorted(parse_qsl(body))
+        return "".join(k + v for k, v in params)
+
     # String literal
     if expr.startswith("'") and expr.endswith("'"):
         return expr[1:-1]
-    
-    # int(x)
+
+    # int(x) — pass-through, value is already a string in this evaluator
     m = re.fullmatch(r"int\((.+)\)", expr)
     if m:
         return evaluate_cel_simple(m.group(1), context)
-    
+
     # base64_encode(x)
     m = re.fullmatch(r"base64_encode\((.+)\)", expr)
     if m:
         inner = evaluate_cel_simple(m.group(1), context)
-        if isinstance(inner, bytes):
-            return base64.b64encode(inner).decode()
-        return base64.b64encode(inner.encode()).decode()
-    
+        data = inner.encode() if isinstance(inner, str) else inner
+        return base64.b64encode(data).decode()
+
     # crc32(x)
     m = re.fullmatch(r"crc32\((.+)\)", expr)
     if m:
@@ -65,43 +95,77 @@ def evaluate_cel_simple(expr: str, context: dict) -> str:
         inner = evaluate_cel_simple(m.group(1), context)
         data = inner.encode() if isinstance(inner, str) else inner
         return str(binascii.crc32(data) & 0xFFFFFFFF)
-    
-    # header('Name')
+
+    # request.headers['name'][0]
+    m = re.fullmatch(r"request\.headers\['([^']+)'\]\[0\]", expr)
+    if m:
+        name = m.group(1).lower()
+        headers = context.get("headers", {})
+        # Try lowercase key first, then original case
+        return headers.get(name, headers.get(m.group(1), ""))
+
+    # request.form['field']  /  body_field('field')
+    m = re.fullmatch(r"request\.form\['([^']+)'\]", expr)
+    if not m:
+        m = re.fullmatch(r"body_field\('([^']+)'\)", expr)
+    if m:
+        from urllib.parse import parse_qs
+        body = context.get("body", context.get("raw_body", ""))
+        parsed = parse_qs(body, keep_blank_values=True)
+        vals = parsed.get(m.group(1), [""])
+        return vals[0]
+
+    # params.secrets.<name>  /  params.<name>
+    m = re.fullmatch(r"params\.secrets\.(\w+)", expr)
+    if m:
+        return context.get("params", {}).get(m.group(1), "")
+    m = re.fullmatch(r"params\.(\w+)", expr)
+    if m:
+        return context.get("params", {}).get(m.group(1), "")
+
+    # header('Name')  — legacy, case-insensitive lookup
     m = re.fullmatch(r"header\('([^']+)'\)", expr)
     if m:
-        return context.get("headers", {}).get(m.group(1), "")
-    
+        name_lc = m.group(1).lower()
+        headers = context.get("headers", {})
+        return headers.get(name_lc, headers.get(m.group(1), ""))
+
     # .trimPrefix('prefix')
     m = re.match(r"^(.+)\.trimPrefix\('([^']*)'\)$", expr)
     if m:
         val = evaluate_cel_simple(m.group(1), context)
         prefix = m.group(2)
         return val.removeprefix(prefix) if val.startswith(prefix) else val
-    
-    # .split(',').filter(s, s.startsWith('v1=')).first().split('=', 2)[1]
-    # Simplified: handle common Stripe-like patterns
-    m = re.match(r"^(.+)\.split\('([^']*)'\)\.filter\(s,\s*s\.startsWith\('([^']*)'\)\)\.first\(\)\.split\('([^']*)'(?:,\s*(\d+))?\)\[(\d+)\]$", expr)
+
+    # .split(sep).filter(s, s.startsWith(pfx)).first().split(sep2, n)[idx]
+    m = re.match(
+        r"^(.+)\.split\('([^']*)'\)\.filter\(s,\s*s\.startsWith\('([^']*)'\)\)\.first\(\)\.split\('([^']*)'(?:,\s*(\d+))?\)\[(\d+)\]$",
+        expr,
+    )
     if m:
         val = evaluate_cel_simple(m.group(1), context)
-        sep = m.group(2)
-        prefix = m.group(3)
-        sep2 = m.group(4)
+        sep, prefix, sep2 = m.group(2), m.group(3), m.group(4)
         maxsplit = int(m.group(5)) if m.group(5) else -1
         idx = int(m.group(6))
-        parts = val.split(sep)
-        filtered = [p for p in parts if p.startswith(prefix)]
+        filtered = [p for p in val.split(sep) if p.startswith(prefix)]
         if not filtered:
             return ""
-        first = filtered[0]
-        parts2 = first.split(sep2, maxsplit) if maxsplit > 0 else first.split(sep2)
+        parts2 = filtered[0].split(sep2, maxsplit) if maxsplit > 0 else filtered[0].split(sep2)
         return parts2[idx] if idx < len(parts2) else ""
-    
-    # String concatenation: expr + expr
-    # Split on top-level + only (not inside function calls or strings)
+
+    # Simple .split('sep')[n]
+    m = re.match(r"^(.+)\.split\('([^']*)'\)\[(\d+)\]$", expr)
+    if m:
+        val = evaluate_cel_simple(m.group(1), context)
+        parts = val.split(m.group(2))
+        idx = int(m.group(3))
+        return parts[idx] if idx < len(parts) else ""
+
+    # String concatenation: split on top-level + only
     parts = split_concat(expr)
     if len(parts) > 1:
         return "".join(evaluate_cel_simple(p.strip(), context) for p in parts)
-    
+
     return expr  # fallback — return as-is
 
 
@@ -190,8 +254,12 @@ def process_spec(spec_path: pathlib.Path) -> None:
         print(f"  For asymmetric/JWT providers, the signing input bytes are:\n")
         
         context = {
+            "body": harness.get("sample_payload", ""),
             "raw_body": harness.get("sample_payload", ""),
-            "headers": harness.get("sample_headers", {}),
+            "method": "POST",
+            "url": harness.get("sample_url", ""),
+            "headers": {k.lower(): v for k, v in harness.get("sample_headers", {}).items()},
+            "params": {},
         }
         
         signing_input_expr = primary.get("signing_input", "raw_body")
@@ -204,18 +272,31 @@ def process_spec(spec_path: pathlib.Path) -> None:
     test_secret = harness.get("test_secret", "")
     sample_payload = harness.get("sample_payload", "")
     sample_headers = harness.get("sample_headers", {})
+    sample_url = harness.get("sample_url", "")
+    test_timestamp_unix = harness.get("test_timestamp_unix")
+
+    # Build lowercase header lookup (headers are lowercased in the engine)
+    headers_lc = {k.lower(): v for k, v in sample_headers.items()}
+
+    # Determine secret_field name and build params context
+    secret_field = primary.get("secret_field", "webhook_secret")
+    params_ctx = {secret_field: test_secret}
 
     context = {
-        "raw_body": sample_payload,
-        "headers": sample_headers,
-        "params": {"webhook_secret": test_secret},
+        "body": sample_payload,
+        "raw_body": sample_payload,  # legacy alias
+        "method": "POST",
+        "url": sample_url,
+        "sample_url": sample_url,
+        "headers": headers_lc,
+        "params": params_ctx,
     }
 
     # Evaluate signing_input
-    signing_input_expr = primary.get("signing_input", "raw_body")
+    signing_input_expr = primary.get("signing_input", "request.body")
     if spec.get("standard_webhooks"):
         msg_id = sample_headers.get("webhook-id", "test-msg-id")
-        timestamp = sample_headers.get("webhook-timestamp", "1714000000")
+        timestamp = sample_headers.get("webhook-timestamp", str(test_timestamp_unix or "1714000000"))
         signing_input = f"{msg_id}.{timestamp}.{sample_payload}"
     else:
         signing_input = evaluate_cel_simple(signing_input_expr, context)
@@ -238,6 +319,12 @@ def process_spec(spec_path: pathlib.Path) -> None:
         # Show what the sig_value CEL extracts from sample_headers
         sig_val_expr = primary.get("sig_value", "")
         claimed = evaluate_cel_simple(sig_val_expr, context)
+
+        # Apply sig_header_format if present to show expected header value
+        sig_fmt = primary.get("sig_header_format", "")
+        if sig_fmt and test_timestamp_unix:
+            expected_header_val = sig_fmt.replace("{sig}", computed).replace("{ts}", str(test_timestamp_unix))
+            print(f"  sig_header_format: {expected_header_val}")
         print(f"  Claimed (from headers): {claimed}")
         
         if claimed == computed:

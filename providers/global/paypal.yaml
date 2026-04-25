@@ -5,7 +5,6 @@ category: payment
 region_tags:
 - global
 status: official
-tier_required: scale
 docs_url: https://developer.paypal.com/docs/api-basics/notifications/webhooks/notification-messages/
 verification:
   primary:
@@ -14,9 +13,9 @@ verification:
     key_source: cert_url_in_header
     cert_header: PAYPAL-CERT-URL
     cert_format: pem
-    sig_value: header('PAYPAL-TRANSMISSION-SIG')
-    signing_input: header('PAYPAL-TRANSMISSION-ID') + '|' + header('PAYPAL-TRANSMISSION-TIME')
-      + '|' + params.webhook_id + '|' + crc32(raw_body)
+    sig_value: request.headers['paypal-transmission-sig'][0]
+    signing_input: request.headers['paypal-transmission-id'][0] + '|' + request.headers['paypal-transmission-time'][0]
+      + '|' + params.webhook_id + '|' + crc32(request.body)
     cache_ttl_seconds: 3600
     refresh_on_unknown_key_id: true
 registration:
@@ -59,11 +58,11 @@ events:
 test_harness:
   test_secret: CI_PAYPAL_TEST_CERT
   sample_headers:
-    PAYPAL-TRANSMISSION-ID: test-transmission-id-abc123
-    PAYPAL-TRANSMISSION-TIME: '2024-04-25T10:00:00Z'
+    paypal-transmission-id: test-transmission-id-abc123
+    paypal-transmission-time: '2024-04-25T10:00:00Z'
     PAYPAL-CERT-URL: https://api.paypal.com/v1/notifications/certs/CERT-test
     PAYPAL-AUTH-ALGO: SHA256withRSA
-    PAYPAL-TRANSMISSION-SIG: base64_encoded_signature_placeholder==
+    paypal-transmission-sig: base64_encoded_signature_placeholder==
     Content-Type: application/json
   sample_payload: '{"id":"WH-abc123","event_type":"PAYMENT.CAPTURE.COMPLETED","resource_type":"capture","resource":{"id":"cap_abc123","amount":{"value":"100.00","currency_code":"USD"},"status":"COMPLETED"}}'
   expected_result: verified
@@ -72,5 +71,5 @@ test_harness:
     case_tag: invalid_signature
     mutate:
       headers:
-        PAYPAL-TRANSMISSION-SIG: invalidsignaturevalue==
+        paypal-transmission-sig: invalidsignaturevalue==
     expected_result: rejected_sig

@@ -1,0 +1,49 @@
+spec_version: 1.0.0
+slug: typeform
+name: Typeform
+category: other
+region_tags:
+- global
+status: official
+docs_url: https://developer.typeform.com/webhooks/secure-your-webhooks/
+verification:
+  primary:
+    type: hmac
+    algo: sha256
+    encoding: base64
+    sig_value: request.headers['typeform-signature'][0].trimPrefix('sha256=')
+    signing_input: request.body
+registration:
+  customer_fields:
+  - name: webhook_secret
+    label: Webhook Secret
+    type: secret
+    required: true
+    help_text: Typeform Admin → Connect → Webhooks → your webhook → Secret
+events:
+- name: form_response
+  description: Form submitted by a respondent
+test_harness:
+  test_secret: test_typeform_secret
+  sample_headers:
+    typeform-signature: sha256=mal0V01rcv6SUE+Y6epStpKqo4pbucPTS4ze47+Gfew=
+    Content-Type: application/json
+  sample_payload: '{"event_id":"evt_abc123","event_type":"form_response","form_response":{"form_id":"AbCdEf","token":"tok_abc123","submitted_at":"2024-04-25T10:00:00Z","answers":[{"field":{"id":"q1","type":"short_text"},"type":"text","text":"Hello"}]}}'
+  expected_result: verified
+  additional_cases:
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"event_id":"evt_abc123","event_type":"form_response","form_response":{"form_id":"HACKED"}}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        typeform-signature: ''
+    expected_result: rejected_sig

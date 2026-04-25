@@ -1,0 +1,71 @@
+spec_version: 1.0.0
+slug: zendesk
+name: Zendesk
+category: crm
+region_tags:
+- global
+status: official
+docs_url: https://developer.zendesk.com/documentation/event-connectors/webhooks/verifying/
+verification:
+  primary:
+    type: hmac
+    algo: sha256
+    encoding: base64
+    sig_value: request.headers['x-zendesk-webhook-signature'][0]
+    signing_input: request.headers['x-zendesk-webhook-signature-timestamp'][0] + request.body
+  replay_prevention:
+    mechanism: timestamp
+    timestamp_value: int(request.headers['x-zendesk-webhook-signature-timestamp'][0])
+    tolerance_seconds: 300
+registration:
+  customer_fields:
+  - name: webhook_secret
+    label: Signing Secret
+    type: secret
+    required: true
+    help_text: Zendesk Admin Center → Apps and integrations → Webhooks → your webhook
+      → Signing secret (shown after creation)
+events:
+- name: ticket.created
+  description: New support ticket created
+- name: ticket.updated
+  description: Ticket updated (status, priority, assignee, etc.)
+- name: ticket.solved
+  description: Ticket marked solved
+- name: ticket.closed
+  description: Ticket closed
+- name: comment.created
+  description: Comment added to a ticket
+test_harness:
+  test_secret: test_zendesk_signing_secret
+  test_timestamp_unix: 1714000000
+  sample_headers:
+    x-zendesk-webhook-signature: z9gZ6MoOd9Kr0mvzZhrLa3uiUXMho6g2i2eJElIWNUs=
+    x-zendesk-webhook-signature-timestamp: '1714000000'
+    Content-Type: application/json
+  sample_payload: '{"id":"evt_abc123","type":"ticket.created","detail":{"ticket_id":12345,"status":"new"}}'
+  expected_result: verified
+  additional_cases:
+  - description: Expired timestamp — stale sig re-signed at Unix(1000000000)
+    mutate:
+      headers:
+        x-zendesk-webhook-signature: LUlJb24rrqViymbbMk6YkgxgYEXj5gxeuVy+dKapois=
+        x-zendesk-webhook-signature-timestamp: '1000000000'
+    expected_result: rejected_replay
+    case_tag: expired_timestamp
+  - description: Wrong secret — HMAC computed with incorrect key
+    case_tag: wrong_secret
+    mutate:
+      secret: wrong_secret_value_xyz
+    expected_result: rejected_sig
+  - description: Tampered payload — body modified after signing
+    case_tag: tampered_payload
+    mutate:
+      payload: '{"id":"evt_abc123","type":"ticket.created","detail":{"ticket_id":99999,"status":"new","injected":true}}'
+    expected_result: rejected_sig
+  - description: Missing signature header
+    case_tag: missing_header
+    mutate:
+      headers:
+        x-zendesk-webhook-signature: ''
+    expected_result: rejected_sig

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aparhub.com/schemas/webhook-provider-spec/v1.0.0",
   "title": "AparHub Webhook Provider Spec",
-  "description": "Machine-executable specification for a webhook provider's verification requirements. Every field drives engine behaviour \u2014 nothing is documentation-only.",
+  "description": "Machine-executable specification for a webhook provider's verification requirements. Every field drives engine behaviour — nothing is documentation-only.",
   "type": "object",
   "required": [
     "spec_version",
@@ -19,7 +19,7 @@
     "spec_version": {
       "type": "string",
       "const": "1.0.0",
-      "description": "Schema version. Pin to exact version \u2014 breaking changes increment major."
+      "description": "Schema version. Pin to exact version — breaking changes increment major."
     },
     "slug": {
       "type": "string",
@@ -74,17 +74,6 @@
       ],
       "description": "official = AparHub-maintained and CI-verified. community = merged PR, CI-verified. deprecated = no longer recommended."
     },
-    "tier_required": {
-      "type": "string",
-      "enum": [
-        "starter",
-        "builder",
-        "scale",
-        "enterprise"
-      ],
-      "default": "starter",
-      "description": "Minimum AparHub tier required to use this provider. Asymmetric/JWT = scale. mTLS = enterprise."
-    },
     "docs_url": {
       "type": "string",
       "format": "uri",
@@ -95,12 +84,12 @@
       "items": {
         "type": "string"
       },
-      "description": "Provider's published source CIDRs. Pre-filled in customer IP allowlist config. Optional \u2014 omit if provider does not publish IPs."
+      "description": "Provider's published source CIDRs. Pre-filled in customer IP allowlist config. Optional — omit if provider does not publish IPs."
     },
     "standard_webhooks": {
       "type": "boolean",
       "default": false,
-      "description": "Set true if provider is Standard Webhooks compliant (webhook-id, webhook-timestamp, webhook-signature headers with id.timestamp.body construction). When true, verification block may omit signing_input and sig_value \u2014 they are fixed by the standard."
+      "description": "Set true if provider is Standard Webhooks compliant (webhook-id, webhook-timestamp, webhook-signature headers with id.timestamp.body construction). When true, verification block may omit signing_input and sig_value — they are fixed by the standard."
     },
     "verification": {
       "type": "object",
@@ -126,7 +115,7 @@
     },
     "registration": {
       "type": "object",
-      "description": "Fields the customer must provide at source setup. Drives the wizard UI \u2014 every field here becomes a form input.",
+      "description": "Fields the customer must provide at source setup. Drives the wizard UI — every field here becomes a form input.",
       "required": [
         "customer_fields"
       ],
@@ -143,7 +132,7 @@
     },
     "events": {
       "type": "array",
-      "description": "Event types this provider can send. Pre-populates the event filter UI. Optional \u2014 omit for providers with dynamic event catalogs.",
+      "description": "Event types this provider can send. Pre-populates the event filter UI. Optional — omit for providers with dynamic event catalogs.",
       "items": {
         "$ref": "#/$defs/EventType"
       }
@@ -241,11 +230,11 @@
         },
         "sig_value": {
           "type": "string",
-          "description": "CEL expression \u2192 string. Extracts the claimed signature from the request. Engine compares this against the computed HMAC digest. Examples: header('X-Razorpay-Signature') | header('Stripe-Signature').extract('v1={s}').s | header('X-Slack-Signature').trimPrefix('v0=')"
+          "description": "CEL expression -> string. Extracts the claimed signature from the request. Header names must be lowercase. Examples: request.headers['x-razorpay-signature'][0] | request.headers['x-slack-signature'][0].trimPrefix('v0=') | request.headers['stripe-signature'][0].split(',').filter(s, s.startsWith('v1=')).first().split('=', 2)[1]"
         },
         "signing_input": {
           "type": "string",
-          "description": "CEL expression \u2192 bytes|string. Constructs the exact byte sequence that gets fed into HMAC. Omit only when standard_webhooks: true (construction is fixed as id.timestamp.body). Examples: raw_body | header('Stripe-Signature').extract('t={ts}').ts + '.' + raw_body | 'v0:' + header('X-Slack-Request-Timestamp') + ':' + raw_body"
+          "description": "CEL expression -> bytes|string. Constructs the exact byte sequence fed into HMAC. Omit only when standard_webhooks: true (fixed as id.timestamp.body). Header names lowercase. type=secret fields: params.secrets.<name>, others: params.<name>. Examples: request.body | request.headers['stripe-signature'][0].split(',').filter(s, s.startsWith('t=')).first().split('=', 2)[1] + '.' + request.body | 'v0:' + request.headers['x-slack-request-timestamp'][0] + ':' + request.body | request.method + request.url + request.body"
         },
         "secret_field": {
           "type": "string",
@@ -260,13 +249,17 @@
           ],
           "default": "raw",
           "description": "Encoding of the stored secret before use as HMAC key. Standard Webhooks uses base64 (strip the whsec_ prefix, then base64-decode)."
+        },
+        "sig_header_format": {
+          "type": "string",
+          "description": "Template describing how the signature is embedded in the header value. Use {sig} for the HMAC digest and {ts} for the timestamp. Omit when the header value IS the digest (optionally with a fixed trimPrefix). Examples: 't={ts},v1={sig}' (Stripe) | 'v1={sig}' (CircleCI) | '{sig}###1' (PhonePe)"
         }
       }
     },
     "SharedSecretStrategy": {
       "type": "object",
       "title": "Shared Secret",
-      "description": "Static token comparison. No body signing \u2014 weaker than HMAC. Use for providers that send a bearer token or static header value.",
+      "description": "Static token comparison. No body signing — weaker than HMAC. Use for providers that send a bearer token or static header value.",
       "required": [
         "type",
         "token_value"
@@ -279,7 +272,7 @@
         },
         "token_value": {
           "type": "string",
-          "description": "CEL expression \u2192 string. Extracts the token from the request. Example: header('Authorization').trimPrefix('Bearer ') | header('X-Webhook-Token') | query('token')"
+          "description": "CEL expression -> string. Extracts the token from the request. Header names lowercase. Examples: request.headers['authorization'][0].trimPrefix('Bearer ') | request.headers['x-webhook-token'][0]"
         },
         "comparison": {
           "type": "string",
@@ -322,11 +315,11 @@
         },
         "sig_value": {
           "type": "string",
-          "description": "CEL expression \u2192 string (base64). Extracts the claimed signature from the request."
+          "description": "CEL expression -> string (base64). Extracts the claimed signature from the request. Header names lowercase."
         },
         "signing_input": {
           "type": "string",
-          "description": "CEL expression \u2192 bytes. Constructs the bytes that were signed. For most asymmetric providers this is the raw body. PayPal uses a 4-field concatenation."
+          "description": "CEL expression -> bytes. Constructs the bytes that were signed. For most asymmetric providers this is request.body. PayPal uses a 4-field concatenation."
         },
         "key_source": {
           "type": "string",
@@ -529,7 +522,7 @@
     "MtlsStrategy": {
       "type": "object",
       "title": "mTLS",
-      "description": "Mutual TLS \u2014 provider authenticates with a client certificate. Requires Enterprise tier. Handled at AparHub infrastructure level, not per-request.",
+      "description": "Mutual TLS — provider authenticates with a client certificate. Requires Enterprise tier. Handled at AparHub infrastructure level, not per-request.",
       "required": [
         "type",
         "ca_cert_url"
@@ -553,7 +546,7 @@
     },
     "RegistrationChallenge": {
       "type": "object",
-      "description": "One-time verification challenge sent by the provider when a webhook URL is registered. AparHub handles automatically \u2014 customer never sees it.",
+      "description": "One-time verification challenge sent by the provider when a webhook URL is registered. AparHub handles automatically — customer never sees it.",
       "required": [
         "type",
         "method",
@@ -634,7 +627,7 @@
         },
         "timestamp_value": {
           "type": "string",
-          "description": "CEL expression \u2192 int (unix epoch seconds). Extracts the timestamp from the request. Example: int(header('X-Slack-Request-Timestamp')) | int(header('Stripe-Signature').extract('t={ts}').ts)"
+          "description": "CEL expression -> int (unix epoch seconds). Extracts the timestamp from the request. Header names lowercase. Examples: int(request.headers['x-slack-request-timestamp'][0]) | int(request.headers['stripe-signature'][0].split(',').filter(s, s.startsWith('t=')).first().split('=', 2)[1])"
         },
         "tolerance_seconds": {
           "type": "integer",
@@ -643,7 +636,7 @@
         },
         "nonce_value": {
           "type": "string",
-          "description": "CEL expression \u2192 string. Extracts the nonce/event ID from the request for dedup store lookup. Required when mechanism = nonce."
+          "description": "CEL expression → string. Extracts the nonce/event ID from the request for dedup store lookup. Required when mechanism = nonce."
         },
         "nonce_ttl_seconds": {
           "type": "integer",
@@ -735,7 +728,7 @@
     },
     "TestHarness": {
       "type": "object",
-      "description": "MANDATORY. CI validates every spec against this harness. The primary case must have expected_result=verified. additional_cases must cover ALL of the following for the declared strategy: HMAC: rejected_sig (wrong secret), rejected_sig (tampered payload), rejected_sig (missing/empty header), rejected_replay (if replay_prevention declared). Shared secret: rejected_sig (wrong token), rejected_sig (missing header). One-time verify: rejected_challenge (wrong verify token). JWT/Asymmetric: rejected_sig (invalid signature) \u2014 use CI test key pair. A spec without full failure coverage will not be merged.",
+      "description": "MANDATORY. CI validates every spec against this harness. The primary case must have expected_result=verified. additional_cases must cover ALL of the following for the declared strategy: HMAC: rejected_sig (wrong secret), rejected_sig (tampered payload), rejected_sig (missing/empty header), rejected_replay (if replay_prevention declared). Shared secret: rejected_sig (wrong token), rejected_sig (missing header). One-time verify: rejected_challenge (wrong verify token). JWT/Asymmetric: rejected_sig (invalid signature) — use CI test key pair. A spec without full failure coverage will not be merged.",
       "required": [
         "test_secret",
         "sample_headers",
@@ -757,7 +750,7 @@
         },
         "sample_payload": {
           "type": "string",
-          "description": "Raw body string exactly as received. Must be the exact bytes \u2014 no re-serialisation."
+          "description": "Raw body string exactly as received. Must be the exact bytes — no re-serialisation."
         },
         "expected_result": {
           "type": "string",
@@ -815,6 +808,14 @@
               }
             }
           }
+        },
+        "test_timestamp_unix": {
+          "type": "integer",
+          "description": "Unix epoch (seconds) at which sample_headers were signed. Required when replay_prevention is declared — CI freezes engine time to this value so the primary test case verifies cleanly. Use 1714000000 as the standard test epoch."
+        },
+        "sample_url": {
+          "type": "string",
+          "description": "Full URL of the webhook endpoint as used during signing. Required when request.url appears in signing_input (e.g. HubSpot v3, Twilio). Example: https://example.com/webhook"
         }
       }
     }

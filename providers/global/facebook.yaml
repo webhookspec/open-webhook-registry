@@ -5,7 +5,6 @@ category: social
 region_tags:
 - global
 status: official
-tier_required: starter
 docs_url: https://developers.facebook.com/docs/graph-api/webhooks/getting-started
 verification:
   registration_challenge:
@@ -22,8 +21,8 @@ verification:
     type: hmac
     algo: sha1
     encoding: hex
-    sig_value: header('X-Hub-Signature').trimPrefix('sha1=')
-    signing_input: raw_body
+    sig_value: request.headers['x-hub-signature'][0].trimPrefix('sha1=')
+    signing_input: request.body
     secret_field: app_secret
 registration:
   customer_fields:
@@ -52,7 +51,7 @@ events:
 test_harness:
   test_secret: test_facebook_app_secret
   sample_headers:
-    X-Hub-Signature: sha1=01b1cb49695c15bace95008e7561f8f6eb129734
+    x-hub-signature: sha1=01b1cb49695c15bace95008e7561f8f6eb129734
     Content-Type: application/json
   sample_payload: '{"object":"page","entry":[{"id":"123456789","time":1714000000,"messaging":[{"sender":{"id":"987654321"},"recipient":{"id":"123456789"},"timestamp":1714000000,"message":{"mid":"m_abc123","text":"Hello"}}]}]}'
   expected_result: verified
@@ -71,7 +70,7 @@ test_harness:
     case_tag: missing_header
     mutate:
       headers:
-        X-Hub-Signature: ''
+        x-hub-signature: ''
     expected_result: rejected_sig
   - description: Wrong verify token in registration challenge
     case_tag: wrong_verify_token
