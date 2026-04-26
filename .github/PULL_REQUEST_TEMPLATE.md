@@ -4,7 +4,6 @@
 **Provider slug:**
 **Region:** India / Global
 **Strategy type:** HMAC / Shared Secret / Asymmetric / JWT / Dataless / mTLS
-**Tier required:** Starter / Builder / Scale+ / Enterprise
 
 ---
 
