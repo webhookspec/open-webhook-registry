@@ -288,7 +288,7 @@
     "AsymmetricStrategy": {
       "type": "object",
       "title": "Asymmetric Key",
-      "description": "RSA or ECDSA signature verification. Provider signs with private key; AparHub verifies with public key. Requires Scale+ tier.",
+      "description": "RSA or ECDSA signature verification. Provider signs with private key; AparHub verifies with public key.",
       "required": [
         "type",
         "algo",
@@ -378,7 +378,7 @@
     "JwtStrategy": {
       "type": "object",
       "title": "JWT / OAuth2 / JWK",
-      "description": "JWT-based verification. Requires Scale+ tier.",
+      "description": "JWT-based verification.",
       "required": [
         "type",
         "algo",
@@ -474,7 +474,7 @@
     "DatalessStrategy": {
       "type": "object",
       "title": "Dataless Notification",
-      "description": "Provider sends minimal payload (event ID only). AparHub fetches the full event via API callback. Requires Scale+ tier.",
+      "description": "Provider sends minimal payload (event ID only). AparHub fetches the full event via API callback.",
       "required": [
         "type",
         "event_id_path",
@@ -522,7 +522,7 @@
     "MtlsStrategy": {
       "type": "object",
       "title": "mTLS",
-      "description": "Mutual TLS — provider authenticates with a client certificate. Requires Enterprise tier. Handled at AparHub infrastructure level, not per-request.",
+      "description": "Mutual TLS — provider authenticates with a client certificate. Handled at AparHub infrastructure level, not per-request.",
       "required": [
         "type",
         "ca_cert_url"
